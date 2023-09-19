@@ -129,7 +129,7 @@ int BPMaximalClique::main_maximal_clique(char* path,int lower_bound,int binary_f
 			auto edge_vec = load_graphByBin(path);
             mc->build(edge_vec);
             gettimeofday(&time_end, NULL);
-            printf("reading time: %.5f ms\n",(time_end.tv_sec - time_start.tv_sec) *1000);
+            printf("reading time: %.5f ms\n",(time_end.tv_sec - time_start.tv_sec) * 1000.0 + (time_end.tv_usec - time_start.tv_usec) / 1000.0);
             int out=setjmp(time_out_MC);
             if(out==0)
             mc_num=mc->maximal_clique_degen();
