@@ -9,13 +9,13 @@ $ make clean
 if your CPU architecture is arm:
 
 ```sh
-$ make arm
+$ make target=arm
 ```
 
 if your CPU architecture is x86
 
 ```sh
-$ make x86
+$ make target=x86
 ```
 
 It generates an executable "MKP".
@@ -51,7 +51,7 @@ In the above command,  "-m maximal" means that we want to list maximal graphs.  
 
 Then we get the following result.
 
-![image-20231109215430925](C:\Users\lenovo\AppData\Roaming\Typora\typora-user-images\image-20231109215430925.png)
+![image-20231109215430925](.\images\image-20231109215430925.png)
 
 the time of reading the input file is 4.23305 ms，and the time of listing maximal 3-plexes whose size is at least 10 is 0.099s  while the cutoff time is 10 seconds. 
 
@@ -65,7 +65,7 @@ we change the input file jazz.bin to jazz.txt.
 
 Then we get the following result.
 
-![image-20231109215414540](C:\Users\lenovo\AppData\Roaming\Typora\typora-user-images\image-20231109215414540.png)
+![image-20231109215414540](.\images\image-20231109215414540.png)
 
 the time of reading the input file is 8.03906 ms，and the time of listing maximal 3-plexes whose size is at least 10 is 0.094s  while the cutoff time is 10 seconds. 
 
@@ -85,7 +85,7 @@ Notice: [Wang et al., 2022. Listing maximal k-plexes in large real-world graphs.
 
    Then we get the following result.
 
-   ![image-20231109205747814](C:\Users\lenovo\AppData\Roaming\Typora\typora-user-images\image-20231109205747814.png)
+   ![image-20231109205747814](.\images\image-20231109205747814.png)
 
    the time of reading the input file is 12.159 ms, and the time of finding the maximum 15-plex whose size is at least 30 is 1.333102 s  while the cutoff time is 10 seconds.
 
@@ -105,7 +105,7 @@ Notice: [Wang et al., 2022. Listing maximal k-plexes in large real-world graphs.
 
    
 
-   ![image-20231109210428747](C:\Users\lenovo\AppData\Roaming\Typora\typora-user-images\image-20231109210428747.png)
+   ![image-20231109210428747](.\images\image-20231109210428747.png)
 
 
 
@@ -125,7 +125,7 @@ In the above command,  "-m maximum" means that we want to find the maximum cliqu
 
 Then we get the following result.
 
-![image-20231109211018130](C:\Users\lenovo\AppData\Roaming\Typora\typora-user-images\image-20231109211018130.png)
+![image-20231109211018130](.\images\image-20231109211018130.png)
 
 the time of reading the input file is 0.13222 ms, and the time of finding the maximum clique whose size is at least 20 is 0.16235 ms  while the cutoff time is 10 seconds.	
 
