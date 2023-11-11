@@ -570,7 +570,7 @@ int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_fl
                 return 1;
             } 
         }
-        if(strcmp(file_path + pos, "txt") == 0){ 
+        if(strcmp(file_path + pos, "txt") == 0 ||strcmp(file_path + pos, "clq") == 0){ 
             IOtime.start();
             main_toBin(file_path);
             std::strcpy(file_path + pos, "bin");
@@ -592,14 +592,21 @@ int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_fl
         printf("reading time: %.5f ms\n",time*1000);
         ListPlex::decomposableSearch(g);
         g.del();
-    }else{
+    }else if(strcmp(file_path + pos, "txt") == 0){
         IOtime.start();
         graph<intT> g = ListPlex::readSNAPText(file_path);
         double time =IOtime.stop();
         printf("reading time: %.5f ms\n",time*1000);
         ListPlex::decomposableSearch(g);
         g.del();
-        }
+        }else if(strcmp(file_path + pos, "clq") == 0){
+        IOtime.start();
+        graph<intT> g = ListPlex::readDIMACS2Text(file_path);
+        double time =IOtime.stop();
+        printf("reading time: %.5f ms\n",time*1000);
+        ListPlex::decomposableSearch(g);
+        g.del();
+    }
     }
     return 0;
 }

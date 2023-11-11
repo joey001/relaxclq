@@ -48,6 +48,7 @@ public:
 
 private:
 	void readSNAPText(const char* filepath);
+	void readDIMACS2Text(const char* filepath);
 	void write_subgraph(ui n, const std::vector<std::pair<int,int> > &edge_list) ;
 	void heuristic_kplex_max_degree(ui processed_threshold) ;
 	void extract_subgraph(ui u, ui *ids, ui &ids_n, ui *rid, std::vector<std::pair<int,int> > &vp, char *exists, ept *pstart, ept *pend, ui *edges, char *deleted, ui *edgelist_pointer) ;

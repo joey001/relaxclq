@@ -70,6 +70,34 @@ EdgeVector load_graphByBin(const std::string path){
     
     return edge_vec;
 }
+EdgeVector load_graph_DIMACS2(const std::string path)
+{
+    EdgeVector edge_vec;
+    FILE *fp = fopen(path.c_str(), "r");
+    if (fp == NULL) {
+        std::cout << "fail to open " << path << std::endl;
+        quit();
+    }
+
+    char line[512];
+    while (fgets(line, 512, fp) != NULL) {
+        if (line[0] == '#' ||line[0] == 'p'||line[0] == 'c') continue;
+        int u = 0, v = 0;
+        const char *c = line;
+        if (line[0]== 'e') c++;
+        if(c[0]==' ') c++;
+        while (isdigit(*c))
+            u = (u << 1) + (u << 3) + (*c++ - 48);
+        c++;
+        while (isdigit(*c))
+            v = (v << 1) + (v << 3) + (*c++ - 48);
+        edge_vec.push_back(std::make_pair(u, v));
+        edge_vec.push_back(std::make_pair(v, u));
+    }    
+    fclose(fp);
+    
+    return edge_vec;
+}
 EdgeVector load_graph(const std::string path)
 {
     EdgeVector edge_vec;

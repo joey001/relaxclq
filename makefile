@@ -36,10 +36,11 @@ endif
 #-fcilkplus
 
 all: 
-    ifeq ($(TARGET_ARCH), $(target_x86))
+    #ifeq ($(TARGET_ARCH), $(target_x86))
 	    g++ $(FLAG) maximal_kplex/toBin.cpp maximal_clique/util.cpp maximal_clique/set_operation.cpp maximal_clique/bitpack_maximal_clique.cpp maximum_clique/GraphClique.cpp maximum_kplex/Graph.cpp main.cpp maximal_kplex/listPlex.cpp -o MKP 
-    else ifeq ($(TARGET_ARCH), $(target_arm))
-	    g++ $(FLAG) maximal_kplex/toBin.cpp maximum_clique/GraphClique.cpp maximum_kplex/Graph.cpp main.cpp maximal_kplex/listPlex.cpp -o MKP 
-    endif
+    #else ifeq ($(TARGET_ARCH), $(target_arm))
+	    
+    #endif
+    
 clean:
 	 $(RM) $(OUTPUT)

@@ -28,6 +28,91 @@ inline static std::string integer_to_string(long long number) {
 	}
 	return res;
 }
+inline graph<intT> readDIMACS2Text(const char* filepath){
+    ui n_IO, m_IO;
+    ui* pstart_IO;
+    ui* edges_IO;
+    ui* reverse;
+	std::ifstream infile;
+	char buf[1024];
+	std::vector<std::pair<ui, ui> > epairs;
+	std::vector<ui> nodes;
+	//FILE *f = Utility::open_file(filepath, "r");
+	infile.open(filepath, std::ios::in| std::ios::binary);
+	if (!infile.is_open()) {
+		fprintf(stderr, "can not find file %s\n", filepath);
+		exit(1);
+	}
+	int max_id = 0;
+	int from, to;
+	int i=0;
+	while (infile.getline(buf, 1024)) {
+		char *p = buf;
+        while (*p == 'e' && *p != '\0') p++;
+		while (*p == ' ' && *p != '\0') p++;
+		if (*p == 'p' || *p == '\0'||*p == 'c') continue;
+		std::stringstream ss(p);
+		ss >> from >> to;
+		if (from != to) {
+			epairs.push_back(std::make_pair(from, to));
+			epairs.push_back(std::make_pair(to, from));
+			nodes.push_back(from);
+			nodes.push_back(to);
+		}
+	}
+	infile.close();
+
+	sort(nodes.begin(), nodes.end());
+	nodes.erase(unique(nodes.begin(), nodes.end()), nodes.end());
+
+	sort(epairs.begin(), epairs.end());
+	epairs.erase(unique(epairs.begin(), epairs.end()), epairs.end());
+
+	ui contn = 1;
+	std::map<ui, ui> idmp;
+	for (ui i = 0; i < nodes.size(); i++) {
+		idmp[nodes[i]] = i;
+		if (nodes[i] != i) {
+			contn = 0;
+		}
+	}
+	//if (contn == 0) printf("Node ids are not preserved! \n");
+
+	n_IO = nodes.size();
+	m_IO = epairs.size();
+    uintT *in = newA(uintT, n_IO + m_IO + 2);
+    in[0] = n_IO;
+    in[1] = m_IO;
+	printf("n= %s, m  = %s(undirected)\n",
+		integer_to_string(n_IO).c_str(),
+		integer_to_string(m_IO).c_str());
+	pstart_IO = new ui[n_IO + 1];
+	edges_IO = new ui[m_IO];
+	reverse = new ui[m_IO];
+	ui j = 0;
+	for (ui i = 0; i < n_IO; i++) {
+		pstart_IO[i] = j;
+		while (j < m_IO && epairs[j].first == nodes[i]) {
+			edges_IO[j] = idmp[epairs[j].second];
+			reverse[j] = i;
+			++j;
+		}
+	}
+	pstart_IO[n_IO] = j;
+    ui *degree = new ui[n_IO];
+	for (ui i = 0; i < n_IO; i++)
+	degree[i] = pstart_IO[i + 1] - pstart_IO[i];
+    vertex<intT> *v = newA(vertex<intT>, n_IO);
+    parallel_for(uintT i = 0; i < n_IO; i++)
+    {
+        uintT d = degree[i];
+        uintT o = pstart_IO[i];
+        v[i].degree = d;
+        v[i].Neighbors = (intT*)(edges_IO+o);
+      }
+      free(degree);
+    return graph<intT>(v, (intT)n_IO, (uintT)m_IO, (intT *)in);
+}
 inline graph<intT> readSNAPText(const char* filepath) {
     ui n_IO, m_IO;
     ui* pstart_IO;

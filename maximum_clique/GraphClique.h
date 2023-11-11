@@ -66,6 +66,7 @@ public:
 private:
 	void print_usage();
 	void readSNAPText(const char* filepath);
+	void readDIMACS2Text(const char* filepath);
 	ui coloring_adj_list(const ui *vs, const ui vs_size, const ui original_size, ui *color, char *vis, const ui start_idx, const ui start_color) ;
 	ui degeneracy_ordering_and_coloring_adj(ui *vs, ui *color, const ui vs_size, char *vis, ui *degree, ui *label, const ui K, const ui threshold) ;
 	ui degeneracy_maximal_clique_adjacency_list(ui *peel_sequence, ui *core, ui *color, char opt, char greedy_extend = 0) ;

@@ -99,7 +99,7 @@ int BPMaximalClique::main_maximal_clique(char* path,int lower_bound,int binary_f
     int mc_num=0;
     time_l=time_limit*1000;
     if(binary_flag==1){
-        if(strcmp(path + pos, "txt") == 0){ 
+        if(strcmp(path + pos, "txt") == 0 ||strcmp(path + pos, "clq") == 0){ 
 			main_toBin(path);
         	std::strcpy(path + pos, "bin");
             auto edge_vec = load_graphByBin(path);
@@ -144,7 +144,7 @@ int BPMaximalClique::main_maximal_clique(char* path,int lower_bound,int binary_f
             printf("mc_num=%d time=%.3fms\n", mc_num, list_mc_time);
             printf("cmp_cnt=%llu\n", cmp_cnt);
             return 0;
-        }else{
+        }else if(strcmp(path + pos, "txt") == 0){
         auto edge_vec = load_graph(path);
         mc->build(edge_vec);
         gettimeofday(&time_end, NULL);
@@ -163,7 +163,26 @@ int BPMaximalClique::main_maximal_clique(char* path,int lower_bound,int binary_f
         printf("mc_num=%d time=%.3fms\n", mc_num, list_mc_time);
         printf("cmp_cnt=%llu\n", cmp_cnt);
         return 0;
-		}
+		}else if(strcmp(path + pos, "clq") == 0){
+        auto edge_vec = load_graph_DIMACS2(path);
+        mc->build(edge_vec);
+        gettimeofday(&time_end, NULL);
+		printf("reading time: %.5f ms\n",(time_end.tv_sec - time_start.tv_sec) * 1000.0 + (time_end.tv_usec - time_start.tv_usec) / 1000.0);
+            int out=setjmp(time_out_MC);
+            if(out==0)
+            mc_num=mc->maximal_clique_degen();
+            else{
+            gettimeofday(&time_end, NULL);
+            printf("mc_num=%d (incomplete) time=%.3fms\n", out-1, (time_end.tv_sec - time_start.tv_sec) * 1000.0 + (time_end.tv_usec - time_start.tv_usec) / 1000.0);
+            printf("cmp_cnt=%llu\n", cmp_cnt);
+            return 0;
+            }
+            gettimeofday(&time_end, NULL);
+    double list_mc_time = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + (time_end.tv_usec - time_start.tv_usec) / 1000.0;
+        printf("mc_num=%d time=%.3fms\n", mc_num, list_mc_time);
+        printf("cmp_cnt=%llu\n", cmp_cnt);
+        return 0;
+        }
     }
 }
 int BPMaximalClique::maximal_clique_degen()

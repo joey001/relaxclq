@@ -68,6 +68,7 @@ std::string extract_filename(const std::string full_filename);
 int arg_pos(char *str, int argc, char **argv);
 void align_malloc(void **memptr, size_t alignment, size_t size);
 EdgeVector load_graph(const std::string path);
+EdgeVector load_graph_DIMACS2(const std::string path);
 EdgeVector load_graphByBin(const std::string path);
 void save_graph(const std::string path, const EdgeVector& edge_vec);
 std::vector<int> load_vertex_order(const std::string path);

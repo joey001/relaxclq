@@ -110,6 +110,87 @@ GraphClique::~GraphClique() {
 		mapping = nullptr;
 	}
 }
+void GraphClique::readDIMACS2Text(const char* filepath) {
+	std::ifstream infile;
+	char buf[1024];
+	std::vector<std::pair<ui, ui> > epairs;
+	std::vector<ui> nodes;
+	//FILE *f = Utility::open_file(filepath, "r");
+	infile.open(filepath, std::ios::in);
+	if (!infile.is_open()) {
+		fprintf(stderr, "can not find file %s\n", filepath);
+		exit(1);
+	}
+	int max_id = 0;
+	int from, to;
+	while (infile.getline(buf, 1024)) {
+		char *p = buf;
+		while (*p == 'e' && *p != '\0') p++;
+		while (*p == ' ' && *p != '\0') p++;
+		if (*p == '#'||*p == 'p' || *p == '\0'||*p == 'c') continue;
+		std::stringstream ss(p);
+		ss >> from >> to;
+		if (from != to) {
+			epairs.push_back(std::make_pair(from, to));
+			epairs.push_back(std::make_pair(to, from));
+			nodes.push_back(from);
+			nodes.push_back(to);
+		}
+	}
+	infile.close();
+
+	sort(nodes.begin(), nodes.end());
+	nodes.erase(unique(nodes.begin(), nodes.end()), nodes.end());
+
+	sort(epairs.begin(), epairs.end());
+	epairs.erase(unique(epairs.begin(), epairs.end()), epairs.end());
+
+	ui contn = 1;
+	std::map<ui, ui> idmp;
+	for (ui i = 0; i < nodes.size(); i++) {
+		idmp[nodes[i]] = i;
+		if (nodes[i] != i) {
+			contn = 0;
+		}
+	}
+	if (contn == 0) printf("Node ids are not preserved! \n");
+
+	n = nodes.size();
+	m = epairs.size();
+	printf("n = %s, (undirected) m = %s\n",
+		integer_to_string(n).c_str(),
+		integer_to_string(m / 2).c_str());
+	ui *degree = new ui[n];
+	if(pstart == nullptr) pstart = new ept[n+1];
+	if(edges == nullptr) edges = new ui[m];
+	pstart[0] = 0;
+	ui j = 0;
+	for (ui i = 0; i < n; i++) {
+		pstart[i] = j;
+		while (j < m && epairs[j].first == nodes[i]) {
+			edges[j] = idmp[epairs[j].second];
+			++j;
+		}
+	}
+	pstart[n] = j;
+
+	for(ui i=0;i<n;i++) degree[i]=pstart[i+1]-pstart[i];
+	for(ui i = 0;i < n;i ++) {
+		if(degree[i] > 0) {
+			// remove self loops and parallel edges
+			ui *buff = edges+pstart[i];
+			sort(buff, buff+degree[i]);
+			ui idx = 0;
+			for(ui j = 0;j < degree[i];j ++) {
+				if(buff[j] >= n) printf("vertex id %u wrong\n", buff[j]);
+				if(buff[j] == i||(j > 0&&buff[j] == buff[j-1])) continue;
+				buff[idx ++] = buff[j];
+			}
+			degree[i] = idx;
+		}
+		}
+		delete[] degree;
+}
 void GraphClique::readSNAPText(const char* filepath) {
 	std::ifstream infile;
 	char buf[1024];
@@ -240,7 +321,7 @@ int GraphClique::main_maximum_clique(char *file_path,int lower_bound,int binary_
 	lb_clique=lower_bound;
 	int pos = fileSuffixPos(file_path);
 	if(binary_flag==1){
-	if(strcmp(file_path + pos, "txt") == 0){
+	if(strcmp(file_path + pos, "txt") == 0 ||strcmp(file_path + pos, "clq") == 0){
 			Timer OITime;
 			main_toBin(file_path);
         	std::strcpy(file_path + pos, "bin");
@@ -256,10 +337,14 @@ int GraphClique::main_maximum_clique(char *file_path,int lower_bound,int binary_
 			Timer OITime;
 			graph->read_graph_binary();
 			printf("reading Time: %s (microseconds)\n",Utility::integer_to_string(OITime.elapsed()).c_str());
-		}else{
+		}else if(strcmp(file_path + pos, "txt") == 0){
 		Timer OITime;
 		graph->readSNAPText(file_path);
 		printf("reading Time: %s (microseconds)\n",Utility::integer_to_string(OITime.elapsed()).c_str());
+		}else if(strcmp(file_path + pos, "clq") == 0){
+		Timer OITime;
+		graph->readDIMACS2Text(file_path);
+		printf("reading Time: %s (microseconds)\n",Utility::integer_to_string(OITime.elapsed()).c_str());			
 		}
 	}
 	//graph->read_graph(argv[2]);
