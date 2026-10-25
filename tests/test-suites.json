@@ -70,16 +70,23 @@
       }
     },
     "as-skitter": {
-      "availability": "registered_not_prepared",
-      "listplex_path": null,
-      "listplex_sha256": null,
+      "availability": "prepared",
+      "listplex_path": "../datasets/p001-core-20261025/benchmarks/normalized/as-skitter.bin",
+      "listplex_sha256": "d55ec604e4c368bd54174b487a29bd5eaa60658294fd760eeb75873c02b9d5c3",
       "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
-      "download_in_this_change": false,
+      "download_in_this_change": true,
       "EDBT_table2_version_hint": {
         "n": 1696415,
         "m_undirected": 11095298,
         "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
-      }
+      },
+      "provenance": "../datasets/p001-core-20261025/manifest.json",
+      "version": "SNAP source, undirected union, remove loops/duplicates, sorted incident IDs remapped; prepared for P001 on Ubuntu",
+      "n": 1696415,
+      "m_undirected": 11095298,
+      "source_page": "https://snap.stanford.edu/data/as-Skitter.html",
+      "download_url": "https://snap.stanford.edu/data/as-skitter.txt.gz",
+      "version_check": "n,m match audited EDBT hints; identical paper edge list is not asserted. This SHA defines the input; establish control counts empirically."
     },
     "email-euall": {
       "availability": "registered_not_prepared",
@@ -118,28 +125,42 @@
       }
     },
     "soc-epinions": {
-      "availability": "registered_not_prepared",
-      "listplex_path": null,
-      "listplex_sha256": null,
+      "availability": "prepared",
+      "listplex_path": "../datasets/p001-core-20261025/benchmarks/normalized/soc-epinions.bin",
+      "listplex_sha256": "0bc794df8cd7455ddf56dead08dc76c7af31d268ddd6144e94021111aa832719",
       "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
-      "download_in_this_change": false,
+      "download_in_this_change": true,
       "EDBT_table2_version_hint": {
         "n": 75879,
         "m_undirected": 405740,
         "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
-      }
+      },
+      "provenance": "../datasets/p001-core-20261025/manifest.json",
+      "version": "SNAP source, undirected union, remove loops/duplicates, sorted incident IDs remapped; prepared for P001 on Ubuntu",
+      "n": 75879,
+      "m_undirected": 405740,
+      "source_page": "https://snap.stanford.edu/data/soc-Epinions1.html",
+      "download_url": "https://snap.stanford.edu/data/soc-Epinions1.txt.gz",
+      "version_check": "n,m match audited EDBT hints; identical paper edge list is not asserted. This SHA defines the input; establish control counts empirically."
     },
     "soc-pokec": {
-      "availability": "registered_not_prepared",
-      "listplex_path": null,
-      "listplex_sha256": null,
+      "availability": "prepared",
+      "listplex_path": "../datasets/p001-core-20261025/benchmarks/normalized/soc-pokec.bin",
+      "listplex_sha256": "9ac56040e5635a8f870208a12237a5f93b0118954f7c68a411329ee242b7497d",
       "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
-      "download_in_this_change": false,
+      "download_in_this_change": true,
       "EDBT_table2_version_hint": {
         "n": 1632803,
         "m_undirected": 22301964,
         "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
-      }
+      },
+      "provenance": "../datasets/p001-core-20261025/manifest.json",
+      "version": "SNAP source, undirected union, remove loops/duplicates, sorted incident IDs remapped; prepared for P001 on Ubuntu",
+      "n": 1632803,
+      "m_undirected": 22301964,
+      "source_page": "https://snap.stanford.edu/data/soc-Pokec.html",
+      "download_url": "https://snap.stanford.edu/data/soc-pokec-relationships.txt.gz",
+      "version_check": "n,m match audited EDBT hints; identical paper edge list is not asserted. This SHA defines the input; establish control counts empirically."
     },
     "soc-slashdot": {
       "availability": "registered_not_prepared",
