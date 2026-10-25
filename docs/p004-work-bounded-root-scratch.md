@@ -20,7 +20,10 @@ root-search interface and obsolete OpenMP-task removal are explicitly reused
 from rejected P001 as runtime scaffolding, not as an accepted sparse-state
 technique. P004 replaces its hash maps and per-root search allocations with
 ordinary dense arrays and reusable search containers. Mainline safe sequence
-counting is retained. No OpenMP/Cilk/TBB/custom pool is linked to the candidate.
+counting is retained. No OpenMP/Cilk/TBB/custom pool is linked to the candidate. Compile-time backend
+guards reject accidental OpenMP/Cilk/Parlay-alternative builds; the make default
+is the native P004 target. Callback-local result aggregation publishes once after
+the stream finishes, avoiding hot writes to adjacent result records.
 
 The inherited legacy residual visited[start] on an early-pruned root is cleared
 explicitly. Thus scratch begins each root with zero visited/count/membership
@@ -75,7 +78,12 @@ serial barrier nor cleared stale flags guarantees the same search tree.
 For the actually assigned stream lists A_s, ignoring hardware cache/RMW
 latencies, a safe span upper bound is
 S = O(B + log(Q+1) + N + max_s [N + sum_{i in A_s} R_i] + Q).
-The N term conservatively charges a fully serialized atomic frontier. It is
+The serial structural-cap scan costs O(N) work and O(N) span. Each of Q
+callbacks initializes its dense arrays serially in O(N) span; native grain-one
+forking adds O(log(Q+1)) span before callbacks. These dense-initialization
+paths execute in parallel and contribute N, rather than Q*N, to span. The
+serial post-join reduction contributes O(Q) span. The N term also conservatively
+charges a fully serialized atomic frontier. It is
 incorrect to replace stream chains with max_i R_i: callback streams remain
 serial, and indivisible expensive roots/imbalance are the central limitation.
 No unconstrained root-DAG work-stealing theorem is claimed for this design.

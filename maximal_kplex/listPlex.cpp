@@ -1,3 +1,6 @@
+#if defined(_OPENMP) || defined(OPENMP) || defined(CILK) || defined(CILKP) || defined(PARLAY_OPENMP) || defined(PARLAY_CILKPLUS) || defined(PARLAY_OPENCILK) || defined(PARLAY_TBB)
+#error "P004 requires the pinned native Parlay scheduler"
+#endif
 int k,lb,bd;
 double time_limit=-1;
 #include <parlay/parallel.h>
@@ -465,7 +468,7 @@ namespace ListPlex
             vector<int> count(pn,0),neibors,neiborsLeft,blk,left,neiInP,neiInG;
             Stack<int> plex,exclStack;
             VtxSet cand1,cand2,excl,exclBK;
-            Result& result=results[stream];
+            Result result; // publish once; adjacent result records never false-share in the root loop
             for (;;) {
                 const size_t idx=next.fetch_add(1,std::memory_order_relaxed);
                 if (idx>=size_t(pn)) break;
@@ -502,6 +505,7 @@ namespace ListPlex
                 listor.plexToCand1();
                 cand1.clear();cand2.clear();
             }
+            results[stream]=result;
         },1);
         unsigned long long cntMaxPlex=0;
         size_t validblk=0,rootCount=0;

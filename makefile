@@ -1,3 +1,4 @@
+.DEFAULT_GOAL := parlay-root-streams
 # avalible targets
 target_x86   =   x86
 target_arm   =   arm
