@@ -4,7 +4,7 @@
   "repository": "https://github.com/joey001/parlaylib.git",
   "revision": "51017699dcc421f80479cdb238d3092233ad0d26",
   "revision_verified_on": "2026-10-25",
-  "integration_status": "policy_only_not_vendored_built_or_benchmarked",
+  "integration_status": "implemented_and_correctness_validated_on_technique/p001-parlay-roots_not_merged",
   "minimum_cpp_standard": 17,
   "worker_environment": "PARLAY_NUM_THREADS",
   "worker_observation": "parlay::num_workers()",
@@ -67,5 +67,12 @@
     "Apply verified process CPU affinity; OMP_PLACES and OMP_PROC_BIND do not bind Parlay workers",
     "Resolve host profile first; when already on the Ubuntu test host, execute directly without SSH to self."
   ],
-  "execution_policy": "tests/execution-policy.json"
+  "execution_policy": "tests/execution-policy.json",
+  "source_distribution": {
+    "kind": "commit-pinned codeload archive (Ubuntu Git TLS fetch failed)",
+    "url": "https://codeload.github.com/joey001/parlaylib/tar.gz/51017699dcc421f80479cdb238d3092233ad0d26",
+    "archive_sha256": "4f2fc759c1ca474db2f45585ee2300997a128d48fba79bf47aaa579aa8858ee8",
+    "source_directory": "../deps/parlaylib",
+    "source_manifest": "../deps/parlaylib-source-manifest.json"
+  }
 }

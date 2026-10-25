@@ -3,7 +3,7 @@
   "path_base": "relaxclq repository root",
   "policy": "docs/parallel-development.md",
   "resource_policy": "../config.md",
-  "reference": "tests/baselines/listplex-hardened-2026-10-25.json",
+  "reference": "tests/baselines/listplex-pack-safe-2026-10-25.json",
   "runner_status": "Declarative plan only: existing historical runners do not consume or enforce this manifest. Future runner must implement resource/gate contracts before launching suites.",
   "default_action": "Plan and validate only; reading this file must not launch jobs or download data",
   "datasets": {
@@ -1119,5 +1119,7 @@
     ]
   },
   "execution_policy": "tests/execution-policy.json",
-  "host_resolution": "Resolve actual host first. On ubuntu-server all tiers run directly; on Windows only budgeted smoke is local. Historical remote values are aliases of ubuntu-test-host, never a requirement to SSH to oneself."
+  "host_resolution": "Resolve actual host first. On ubuntu-server all tiers run directly; on Windows only budgeted smoke is local. Historical remote values are aliases of ubuntu-test-host, never a requirement to SSH to oneself.",
+  "historical_reference": "tests/baselines/listplex-hardened-2026-10-25.json",
+  "reference_update_reason": "Independent Boolean-sum UB/aliasing repair discovered by K4100 UBSan; new separately pinned reference, original immutable archive retained."
 }

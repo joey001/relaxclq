@@ -56,6 +56,8 @@
     "OMP_MAX_ACTIVE_LEVELS": "1"
   },
   "same_binary_multi_thread_role": "legacy OpenMP parallel control, not a Parlay candidate",
-  "status": "source pinned; correctness validation in progress",
-  "preserve_parent": true
+  "status": "validated by P001 full oracle, real-input counts and sanitizer gates",
+  "preserve_parent": true,
+  "correctness_evidence": "/home/joey/k-plex-rethinki-ubuntu/runs/p001-validation-summary.json",
+  "correctness_evidence_sha256": "a2a2b1e2e9c52e08e9ca246cba6cadb466e40695222ace3f4fa222f575074854"
 }

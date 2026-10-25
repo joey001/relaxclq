@@ -31,3 +31,8 @@
 ## 开发机与测试机角色（所有分支适用）
 
 项目根目录的config.md与execution-environments.json决定实际机器角色；Ubuntu下运行 `python3 ../tools/project-context.py --operation inventory`（从relaxclq目录）核对。在 `/home/joey/k-plex-rethinki-ubuntu/relaxclq` 工作时，开发机与测试机相同，直接本机编译、回归及性能测试，长任务用本机tmux，不通过SSH/SCP重复派发给自己。历史remote_sanity/where=remote只是Ubuntu测试目标名称。Windows笔记本120秒/20例门槛不套用为Ubuntu的异机迁移要求；Ubuntu烟测默认4workers，重任务总预算仍为20workers/160GiB及可用内存70%。外层root/tools/config及仓库内相对结构两端一致；历史src快照不是当前开发仓库。
+
+
+## 2026-10-25 P001 回归发现后的参考升级
+
+当前默认串行参考由 tests/test-suites.json 的 reference 指向 listplex-pack-safe-2026-10-25.json：仅修复 sequence::sumFlagsSerial 的有符号溢出及 bool/int 类型别名，枚举逻辑不变；source archive SHA 为 c5c06a6f3f69c23e268adb6d7c956439fd5d6f40075b6df22eddf5252a1b43b2。旧 hardened 归档及证据永久保留，作为历史参考，不声称其已通过本轮 K4100 UBSan。未来实验明确记录选择的版本，不能覆盖旧归档。单线程参考和同线程旧 OpenMP 控制均从新归档独立构建；并行候选仍只使用 Parlay。helper 的专门回归为 tests/sequence_flags_smoke.cpp，使用 ASan+UBSan 验证。P001 的实现、实验和决定以主线 technique.md 为准。

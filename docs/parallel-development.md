@@ -87,3 +87,8 @@
 留出组固定为com-dblp(4,12)、soc-pokec(4,20)、as-skitter(3,60)，不能在其失败后调参仍称为留出验证。首次Parlay迁移额外用归档旧版的同线程并行控制作对照，标记为legacy-parallel-control；它不改变固定单线程参考定义。
 
 涉及局部算法修改时，增加针对该改变的oracle用例与反例，并分别报告候选1worker的算法/运行时成本变化及同构建的多worker扩展。work以共同参数、模型和保证类型比较渐近上界；若搜索树改变，不假称逐实例W_candidate=O(W_reference)或节点完全相同，较强保证需证明。不得用这一许可绕过small-and-sweet、正确性和泛化验收。
+
+
+## 2026-10-25 P001 回归发现后的参考升级
+
+当前默认串行参考由 tests/test-suites.json 的 reference 指向 listplex-pack-safe-2026-10-25.json：仅修复 sequence::sumFlagsSerial 的有符号溢出及 bool/int 类型别名，枚举逻辑不变；source archive SHA 为 c5c06a6f3f69c23e268adb6d7c956439fd5d6f40075b6df22eddf5252a1b43b2。旧 hardened 归档及证据永久保留，作为历史参考，不声称其已通过本轮 K4100 UBSan。未来实验明确记录选择的版本，不能覆盖旧归档。单线程参考和同线程旧 OpenMP 控制均从新归档独立构建；并行候选仍只使用 Parlay。helper 的专门回归为 tests/sequence_flags_smoke.cpp，使用 ASan+UBSan 验证。P001 的实现、实验和决定以主线 technique.md 为准。
