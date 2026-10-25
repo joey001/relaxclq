@@ -8,7 +8,7 @@ Future candidate algorithms use **the native ParlayLib scheduler** from [joey001
 
 [GBBS](https://github.com/ParAlg/gbbs) is a useful source of Parlay graph-algorithm patterns; it is neither a mandatory dependency nor the boundary of permitted ideas. Its `gbbs/bridge.h` exposes Parlay loops and fork-join operations. GBBS currently pins a different Parlay revision: inspect compatibility instead of silently replacing the selected fork. Preserve source attribution and applicable licenses for adapted code.
 
-**No Parlay technique has been implemented, measured, accepted, or rejected yet.** Existing hardening and OpenMP measurements are historical evidence, not experiments on the proposals below. The three branches below are reserved for independent trials; an empty branch is not an attempted implementation. No graphs are downloaded and no experiments are launched by maintaining this ledger.
+**P001 is now being implemented and independently reviewed on Ubuntu; no candidate has been measured, accepted, or rejected yet.** Existing hardening and OpenMP measurements are historical evidence, not experiments on the proposals below. The three branches below are reserved for independent trials; an empty branch is not an attempted implementation. No graphs are downloaded and no experiments are launched by maintaining this ledger.
 
 ## Authorized algorithm adaptations
 
@@ -43,7 +43,7 @@ For a fixed normalized input and `(k,q)`, let `R` be the number of independent r
 
 | ID | Technique | Dedicated branch | Status | Theory gate | Experiment gate |
 | --- | --- | --- | --- | --- | --- |
-| P001 | Native Parlay root parallelism | `technique/p001-parlay-roots` | planned; branch reserved | not validated | not run |
+| P001 | Native Parlay root parallelism | `technique/p001-parlay-roots` | in_progress; implementation and correctness first | under review | not run |
 | P002 | Bounded fork-join splitting of heavy subtrees | `technique/p002-bounded-fork-join` | planned; branch reserved | not validated | not run |
 | P003 | Shared immutable blocks with compact task state | `technique/p003-shared-task-state` | planned; branch reserved | not validated | not run |
 
@@ -107,3 +107,14 @@ See [development policy](docs/parallel-development.md), [runtime contract](tests
 ## Execution location after workspace migration
 
 The primary project is `/home/joey/k-plex-rethinki-ubuntu`, and its canonical algorithm repository is `relaxclq/`. When developing directly on this Ubuntu host, development and testing are co-located: build and execute all tiers locally on that server, using its local tmux for long runs. Do not SSH/SCP the work back to the same host. The Windows copy uses SSH only when the selected operation targets the separate Ubuntu host. Names such as `remote_sanity` or legacy `where=remote` identify the test host, not a mandatory network hop. Resolve the profile using `../tools/project-context.py` and `../execution-environments.json`; the 20-worker and memory caps apply regardless of transport.
+
+
+## P001 trial 2026-10-25: predeclared execution plan
+
+- **Identity:** native Parlay root parallelism, branch `technique/p001-parlay-roots`, mainline/base `f85c6e833e7f67330a684a0fe894620e874eb988`, pinned runtime `51017699dcc421f80479cdb238d3092233ad0d26`. Solver edits and execution are native to Ubuntu. Implementation, independent oracle validation and work/ownership review are assigned to separate collaborating agents; benchmark admission and this mainline ledger are coordinated by the primary agent.
+- **Work review:** the original worker-local dense global-vertex arrays would introduce an uncharged P*n initialization term. A minimal port must remove that term or fail the theory gate. Expected amortized sparse lookup is an allowed candidate design, with its expected assumptions and practical overhead measured explicitly. No success is assumed.
+- **Correctness admission:** 19-call smoke, 2,048 exhaustive five-vertex cases plus 186 seeded random cases against independent sets and frozen reference, P=1/4 candidate, duplicate checks; storage/CLI/text/bin/large-capacity boundaries; ASan/UBSan/leaks and repeated 2/8/16/20-worker small cases. Document TSan compatibility separately.
+- **Stage A:** jazz(3,10), ca-GrQc(3,10), jazz(4,12), email-Enron(3,20), wiki-vote(3,20), com-dblp(3,20). Compare the same native candidate executable at P=1/2/4/8/16/20 against an independently built immutable legacy reference/control at the same P, with three interleaved repetitions, seed 20261025. The one-worker reference is the serial baseline; candidate speedup uses candidate P=1 only.
+- **Core and holdout:** preserve all five manifest core cases and the existing holdout split: com-dblp(4,12), soc-pokec(4,20), as-skitter(3,60). Prepare missing SNAP inputs with provenance, normalization and hashes before any core measurement. A clearly repeatable Stage A regression can reject the route before an expensive full-core sweep; then unrun cases remain explicitly unrun and do not establish generalization. Otherwise proceed through pilots and the full required core grid within the declared budget. Never tune on holdout failures.
+- **Budget:** one timed benchmark process, all measurements on the same CPU affinity 0-19, <=20 total workers, 48 GiB per timed child, whole batch <=160 GiB and <=70% currently available memory. Stage A: 60 seconds per invocation, 1,800 seconds batch; core: 1,800 seconds per invocation, 14,400 seconds pilot batch and 43,200 seconds full batch. No data preparation or compilation overlaps timings. At least three repetitions and additional paired checks for apparent regressions; keep censored/incomplete results.
+- **Evidence:** Ubuntu `runs/p001-20261025/plan.json`; implementation commit, proof, exact result files and final independent gate outcomes pending. This plan is not an experimental result.
