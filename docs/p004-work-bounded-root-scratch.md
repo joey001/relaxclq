@@ -155,3 +155,18 @@ Release binary SHA256: `d661de3e2c473fe16bae2a6f1de622f99c19a8f72cc508d918ba2aed
 Emit binary SHA256: `3404f08326642c8250454950bf96630b4099355a246de72364edcc4f1f7752e5`.
 
 No performance measurement has been run by this technique owner.
+
+## Full correctness admission
+
+`runs/p004-validation-summary.json` verifies source identities and current
+binary hashes across all ten gates, all 9431 logical checks passed, 4468 reused
+reference records and 4963 new solver/unit invocations, plus one separate TSan
+compatibility attempt (unsupported environment as recorded above). High-worker
+stress adds 240 exact-set checks at P2/P8/P16/P20, three repetitions of 20
+predeclared small cases. Sanity adds 24 calls covering P1/P4/P8/P16/P20 and
+the safe reference. Eight targeted checks on K520/K4100 minus edges (0,1)
+and (0,2), k=2/q=n-1, produce exactly the three sets omitting vertex 0, 1
+or 2, including ASan P4; inputs reuse independently hashed P002 fixtures.
+
+Correctness performance admission is passed; speed/scalability and the
+small-and-sweet experimental gate remain pending.
