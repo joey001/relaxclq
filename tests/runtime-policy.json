@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "selected_runtime": "ParlayLib native work-stealing scheduler",
+  "repository": "https://github.com/joey001/parlaylib.git",
+  "revision": "51017699dcc421f80479cdb238d3092233ad0d26",
+  "revision_verified_on": "2026-10-25",
+  "integration_status": "policy_only_not_vendored_built_or_benchmarked",
+  "minimum_cpp_standard": 17,
+  "worker_environment": "PARLAY_NUM_THREADS",
+  "worker_observation": "parlay::num_workers()",
+  "worker_id": "parlay::worker_id()",
+  "local_default_workers": 4,
+  "remote_default_max_workers": 20,
+  "system_thread_linkage": "Threads::Threads / platform equivalent",
+  "candidate_forbidden_backends": [
+    "OpenMP",
+    "Cilk",
+    "OpenCilk",
+    "TBB",
+    "custom independent thread pools"
+  ],
+  "candidate_forbidden_macros": [
+    "OPENMP",
+    "PARLAY_OPENMP",
+    "PARLAY_CILKPLUS",
+    "PARLAY_OPENCILK",
+    "PARLAY_TBB"
+  ],
+  "candidate_forbidden_flags": [
+    "-fopenmp",
+    "-fcilkplus",
+    "-fopencilk"
+  ],
+  "candidate_performance_forbidden_macro": "PARLAY_SEQUENTIAL",
+  "exceptions": "Archived ListPlex reference and unchanged external author implementations retain their historical runtime; PARLAY_SEQUENTIAL may be a separately labelled debugging build, never the one-worker speedup denominator.",
+  "preferred_primitives": [
+    "parlay::parallel_for",
+    "parlay::par_do",
+    "parlay::sequence",
+    "parlay::slice",
+    "parlay::reduce",
+    "parlay::scan",
+    "parlay::filter",
+    "parlay::pack"
+  ],
+  "granularity_policy": "Prefer library defaults or a proven structural rule; no dataset-name/hardware lookup tables or per-case tuned task thresholds",
+  "gbbs_reference": {
+    "repository": "https://github.com/ParAlg/gbbs",
+    "revision": "dbd1dcad582c0a316c5ba0d5524319d596dd82da",
+    "role": "Optional design and implementation reference, not a required dependency or restriction on ideas",
+    "verified_paths": [
+      "gbbs/bridge.h",
+      "MODULE.bazel"
+    ],
+    "parlay_dependency_note": "GBBS pins a different ParlayLib repository/revision; use the user-selected joey001 fork for candidates and check API compatibility rather than substituting GBBS dependencies."
+  },
+  "verified_sources": [
+    "https://github.com/joey001/parlaylib/blob/51017699dcc421f80479cdb238d3092233ad0d26/include/parlay/parallel.h",
+    "https://github.com/joey001/parlaylib/blob/51017699dcc421f80479cdb238d3092233ad0d26/CMakeLists.txt",
+    "https://github.com/ParAlg/gbbs/blob/dbd1dcad582c0a316c5ba0d5524319d596dd82da/gbbs/bridge.h"
+  ],
+  "worker_launch_contract": [
+    "Set PARLAY_NUM_THREADS before process/runtime initialization for each candidate process",
+    "Check observed parlay::num_workers() equals requested workers",
+    "Use the same native scheduler build at P=1 and P>1",
+    "Do not create a separate scheduler/thread pool inside each root or recursive call",
+    "Apply verified process CPU affinity; OMP_PLACES and OMP_PROC_BIND do not bind Parlay workers"
+  ]
+}

@@ -1,0 +1,1100 @@
+{
+  "schema_version": 2,
+  "path_base": "relaxclq repository root",
+  "policy": "docs/parallel-development.md",
+  "resource_policy": "../config.md",
+  "reference": "tests/baselines/listplex-hardened-2026-10-25.json",
+  "runner_status": "Declarative plan only: existing historical runners do not consume or enforce this manifest. Future runner must implement resource/gate contracts before launching suites.",
+  "default_action": "Plan and validate only; reading this file must not launch jobs or download data",
+  "datasets": {
+    "jazz": {
+      "availability": "prepared",
+      "listplex_path": "data/jazz.bin",
+      "listplex_sha256": "149fa62e8c21c2094faf2a797982c6b31a39476513e188d3834ab8fffbedece5",
+      "remote_cache_file": "jazz.bin",
+      "version": "normalized or jazz artifact used in hardening-20261025-01",
+      "provenance": "data/jazz.bin; evaluation/2026-10-25-hardening/remote-results/dataset-checksums.json"
+    },
+    "ca-GrQc": {
+      "availability": "prepared",
+      "listplex_path": "evaluation/2026-10-25/benchmarks/normalized/ca-GrQc.bin",
+      "listplex_sha256": "d6151ea87b833c7a9efe093cc1ae5be923c448727b9ce1ade4b7420c3e72be93",
+      "remote_cache_file": "ca-GrQc.bin",
+      "version": "normalized or jazz artifact used in hardening-20261025-01",
+      "provenance": "evaluation/2026-10-25/benchmarks/manifest.json"
+    },
+    "wiki-vote": {
+      "availability": "prepared",
+      "listplex_path": "evaluation/2026-10-25/benchmarks/normalized/wiki-Vote.bin",
+      "listplex_sha256": "9463ead1d12c90a2bf9f7ed040c3e9156e5880db42102da5bcf6d6467a769fd8",
+      "remote_cache_file": "wiki-Vote.bin",
+      "version": "normalized or jazz artifact used in hardening-20261025-01",
+      "provenance": "evaluation/2026-10-25/benchmarks/manifest.json",
+      "EDBT_table2_version_hint": {
+        "n": 7115,
+        "m_undirected": 100762,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "com-dblp": {
+      "availability": "prepared",
+      "listplex_path": "evaluation/2026-10-25/benchmarks/normalized/com-dblp.bin",
+      "listplex_sha256": "5a44f46cd780478140d63a1f297fdd640a7c0813d3803966b0dc225aaed143c7",
+      "remote_cache_file": "com-dblp.bin",
+      "version": "normalized or jazz artifact used in hardening-20261025-01",
+      "provenance": "evaluation/2026-10-25/benchmarks/manifest.json",
+      "EDBT_table2_version_hint": {
+        "n": 317080,
+        "m_undirected": 1049866,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "email-Enron": {
+      "availability": "prepared",
+      "listplex_path": "evaluation/2026-10-25/benchmarks/normalized/email-Enron.bin",
+      "listplex_sha256": "a56744d0283477b2a9f6338af1bbfdeb9a79adba1697e938e596c71072e65444",
+      "remote_cache_file": "email-Enron.bin",
+      "version": "normalized or jazz artifact used in hardening-20261025-01",
+      "provenance": "evaluation/2026-10-25/benchmarks/manifest.json"
+    },
+    "arabic-2005": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "EDBT_table2_version_hint": {
+        "n": 22743881,
+        "m_undirected": 553903073,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "as-skitter": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "EDBT_table2_version_hint": {
+        "n": 1696415,
+        "m_undirected": 11095298,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "email-euall": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "EDBT_table2_version_hint": {
+        "n": 265009,
+        "m_undirected": 364481,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "enwiki-2021": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "EDBT_table2_version_hint": {
+        "n": 6253897,
+        "m_undirected": 136494843,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "it-2004": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "EDBT_table2_version_hint": {
+        "n": 41290648,
+        "m_undirected": 1027474947,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "soc-epinions": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "EDBT_table2_version_hint": {
+        "n": 75879,
+        "m_undirected": 405740,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "soc-pokec": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "EDBT_table2_version_hint": {
+        "n": 1632803,
+        "m_undirected": 22301964,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "soc-slashdot": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "legacy_input_not_selected": "data/soc-slashdot.bin; not interchangeable by filename with EDBT n=82168,m=504230",
+      "EDBT_table2_version_hint": {
+        "n": 82168,
+        "m_undirected": 504230,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "webbase-2001": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify source and normalization matching the selected paper, then pin n,m and SHA-256 before runs",
+      "download_in_this_change": false,
+      "EDBT_table2_version_hint": {
+        "n": 115554441,
+        "m_undirected": 854809761,
+        "role": "Paper identity hint; verify preprocessing and actual input, not an asserted hash match"
+      }
+    },
+    "brock200-4": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify the DIMACS/CIKM source, edge conventions and normalization; pin n,m and SHA-256 before optional runs",
+      "download_in_this_change": false
+    },
+    "p_hat700-1": {
+      "availability": "registered_not_prepared",
+      "listplex_path": null,
+      "listplex_sha256": null,
+      "required_version": "Identify the DIMACS/CIKM source, edge conventions and normalization; pin n,m and SHA-256 before optional runs",
+      "download_in_this_change": false
+    }
+  },
+  "suites": {
+    "dev_smoke": {
+      "purpose": "Local development correctness, never a speedup benchmark",
+      "where": "local_if_within_budget_else_remote",
+      "run_variants": [
+        {
+          "label": "reference-one-thread",
+          "source": "tests/baselines/listplex-hardened-2026-10-25.json",
+          "workers": 1,
+          "runtime": "archived-reference"
+        },
+        {
+          "label": "candidate-one-worker",
+          "source": "current candidate build",
+          "workers": 1,
+          "runtime": "parlay-native"
+        },
+        {
+          "label": "candidate-parallel",
+          "source": "same candidate build",
+          "workers": 4,
+          "runtime": "parlay-native"
+        }
+      ],
+      "cases": [
+        {
+          "id": "jazz-k3-q10",
+          "dataset": "jazz",
+          "k": 3,
+          "q": 10,
+          "comparison": "count",
+          "expected_count": 257233,
+          "expectation": "Measured on pinned input and hardened reference; not copied from a paper"
+        },
+        {
+          "id": "grqc-k3-q10",
+          "dataset": "ca-GrQc",
+          "k": 3,
+          "q": 10,
+          "comparison": "count",
+          "expected_count": 13352,
+          "expectation": "Measured on pinned input and hardened reference"
+        },
+        {
+          "id": "complete5-k3-q5",
+          "fixture": {
+            "kind": "complete",
+            "n": 5
+          },
+          "k": 3,
+          "q": 5,
+          "comparison": "exact_sets",
+          "expected_sets": [
+            [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          ]
+        },
+        {
+          "id": "empty-k2-q3",
+          "fixture": {
+            "kind": "simple_graph",
+            "n": 0,
+            "edges": []
+          },
+          "k": 2,
+          "q": 3,
+          "comparison": "exact_sets",
+          "expected_sets": []
+        },
+        {
+          "id": "boundary6-k2-q3",
+          "listplex_path": "evaluation/2026-10-25-hardening/counterexample.bin",
+          "listplex_sha256": "7b6efe57ced3f9e81864587ff26190106efafb5a8de5ce5ba262b7d136c56189",
+          "fixture": {
+            "kind": "simple_graph",
+            "n": 6,
+            "edges": [
+              [
+                0,
+                3
+              ],
+              [
+                1,
+                2
+              ],
+              [
+                1,
+                5
+              ],
+              [
+                2,
+                4
+              ]
+            ]
+          },
+          "k": 2,
+          "q": 3,
+          "comparison": "exact_sets",
+          "expected_sets": [
+            [
+              1,
+              2,
+              4
+            ],
+            [
+              1,
+              2,
+              5
+            ]
+          ]
+        },
+        {
+          "id": "complete520-k2-q520",
+          "fixture": {
+            "kind": "complete",
+            "n": 520
+          },
+          "k": 2,
+          "q": 520,
+          "comparison": "count",
+          "expected_count": 1,
+          "expectation": "Analytic complete-graph maximum set"
+        }
+      ],
+      "extra_executables": [
+        {
+          "source": "tests/storage_smoke.cpp",
+          "runs": 1,
+          "purpose": "Storage ownership, growth and restoration"
+        }
+      ],
+      "planned_invocations": 19,
+      "max_local_invocations": 20,
+      "case_timeout_s": 10,
+      "total_local_budget_s": 120,
+      "concurrent_processes": 1,
+      "instrumented_or_debug_timeout_policy": "If estimated or observed total exceeds 120s, finish remaining checks remotely; never raise laptop budget implicitly",
+      "candidate_workers": [
+        1,
+        4
+      ]
+    },
+    "dev_regression": {
+      "where": "remote",
+      "comparison": "exact_sets with independent oracle, deduplicated-set count equals emitted count",
+      "exhaustive": {
+        "n": 5,
+        "all_simple_labeled_graphs": 1024,
+        "k": [
+          2
+        ],
+        "q": [
+          3,
+          4
+        ],
+        "cases": 2048
+      },
+      "random": {
+        "seed": 20261025,
+        "n": [
+          6,
+          9,
+          12,
+          15
+        ],
+        "densities": [
+          0.2,
+          0.5,
+          0.8
+        ],
+        "graphs_per_density": 2,
+        "k": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "q": [
+          "2*k-1",
+          "2*k"
+        ],
+        "skip_if_q_exceeds_n": true,
+        "cases": 186
+      },
+      "boundaries": [
+        "K512",
+        "K520",
+        "K4100",
+        "empty",
+        "single vertex",
+        "k>4",
+        "invalid CLI",
+        "text/bin/conversion ownership"
+      ],
+      "sanitizers": [
+        "ASan+UBSan+leak checking in a separate build"
+      ],
+      "race_stress": {
+        "fixture_selection": "20 deterministic representative small mixed-workload/oracle cases",
+        "repetitions": 3,
+        "triggers": [
+          "task scheduling",
+          "queue/stealing",
+          "shared mutable state",
+          "memory pool",
+          "ownership/lifetime changes"
+        ],
+        "thread_sanitizer": "Use a compatible build/runtime when available; unsupported tool/runtime is not a pass, document limitation and retain repeated exact-set stress checks Check compatibility specifically with the pinned Parlay native scheduler.",
+        "candidate_workers": [
+          2,
+          8,
+          16,
+          20
+        ]
+      },
+      "candidate_workers": [
+        1,
+        4
+      ],
+      "reference_workers": 1,
+      "additional_trigger": "Local algorithm/logic changes require targeted oracle/counterexample tests as well as the existing semantic, duplicate and concurrency regressions."
+    },
+    "remote_sanity": {
+      "where": "remote",
+      "purpose": "Intermediate correctness gate before challenging performance; these are not the hard benchmark set",
+      "repetitions": 1,
+      "case_timeout_s": 60,
+      "cases": [
+        {
+          "dataset": "jazz",
+          "k": 4,
+          "q": 12,
+          "expected_count": 2745953
+        },
+        {
+          "dataset": "email-Enron",
+          "k": 3,
+          "q": 20,
+          "expected_count": 128293
+        },
+        {
+          "dataset": "wiki-vote",
+          "k": 3,
+          "q": 20,
+          "expected_count": 156727
+        },
+        {
+          "dataset": "com-dblp",
+          "k": 3,
+          "q": 20,
+          "expected_count": 2141932
+        }
+      ],
+      "candidate_workers": [
+        1,
+        4,
+        8,
+        20
+      ]
+    },
+    "perf_core": {
+      "where": "remote",
+      "selection": "First performance tier; only selected, prepared cases, not automatic full sweep",
+      "initial_case_timeout_s": 1800,
+      "repetitions_min": 3
+    },
+    "perf_extended": {
+      "where": "remote",
+      "selection": "Heavy-output tier after correctness and core results; plan total batch time",
+      "initial_case_timeout_s": 21600,
+      "repetitions_min": 3
+    },
+    "perf_large": {
+      "where": "remote",
+      "selection": "Large graph and parallel scheduling tier after data provenance and peak-memory planning",
+      "initial_case_timeout_s": 21600,
+      "per_process_memory_gib": null,
+      "memory_policy": "Must choose an explicit limit from measured/estimated peak and config.md; never inherit the old 16GiB cap blindly or treat null as unlimited",
+      "repetitions_min": 3
+    },
+    "perf_stress_optional": {
+      "where": "remote",
+      "selection": "Not a default gate; extreme, >12h/24h, zero-output, or only one paper reports this setting",
+      "default_enabled": false,
+      "case_timeout_s": null,
+      "budget_policy": "Choose an explicit timeout/memory/whole-batch time budget before launching; null is unspecified, not unlimited"
+    }
+  },
+  "performance_cases": [
+    {
+      "id": "soc-epinions-k4-q30",
+      "dataset": "soc-epinions",
+      "k": 4,
+      "q": 30,
+      "suite": "perf_core",
+      "paper_count_hint": 13172906,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 139.59,
+          "ListPlex": 545.82,
+          "PlexEnum": 93.47
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "as-skitter-k3-q60",
+      "dataset": "as-skitter",
+      "k": 3,
+      "q": 60,
+      "suite": "perf_core",
+      "paper_count_hint": 9898234,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 283.52,
+          "ListPlex": 1010.48,
+          "PlexEnum": 234.17
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "wiki-vote-k4-q20",
+      "dataset": "wiki-vote",
+      "k": 4,
+      "q": 20,
+      "suite": "perf_core",
+      "paper_count_hint": 46729532,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 483.97,
+          "ListPlex": 1025.54,
+          "PlexEnum": 252.4
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "com-dblp-k4-q12",
+      "dataset": "com-dblp",
+      "k": 4,
+      "q": 12,
+      "suite": "perf_core",
+      "paper_count_hint": 610150817,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 914.84,
+          "ListPlex": 729.16,
+          "PlexEnum": 666.98
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "com-dblp-k4-q20",
+      "dataset": "com-dblp",
+      "k": 4,
+      "q": 20,
+      "suite": "perf_extended",
+      "paper_count_hint": 492253045,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 726.93,
+          "ListPlex": 621.17,
+          "PlexEnum": 546.3
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "soc-pokec-k4-q20",
+      "dataset": "soc-pokec",
+      "k": 4,
+      "q": 20,
+      "suite": "perf_core",
+      "paper_count_hint": 318035938,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 1148.87,
+          "ListPlex": 1722.87,
+          "PlexEnum": 780.34
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "soc-pokec-k3-q12",
+      "dataset": "soc-pokec",
+      "k": 3,
+      "q": 12,
+      "suite": "perf_extended",
+      "paper_count_hint": 520888893,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 1719.85,
+          "ListPlex": 1528.07,
+          "PlexEnum": 996.43
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "wiki-vote-k3-q12",
+      "dataset": "wiki-vote",
+      "k": 3,
+      "q": 12,
+      "suite": "perf_extended",
+      "paper_count_hint": 458153397,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 2680.68,
+          "ListPlex": 2037.51,
+          "PlexEnum": 1239.83
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": "CIKM Table1 count differs by one from WWW/EDBT; retain and resolve input provenance; do not silently alter counts"
+    },
+    {
+      "id": "soc-epinions-k3-q20",
+      "dataset": "soc-epinions",
+      "k": 3,
+      "q": 20,
+      "suite": "perf_extended",
+      "paper_count_hint": 548634119,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 2240.68,
+          "ListPlex": 2837.49,
+          "PlexEnum": 1540.87
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "email-euall-k4-q12",
+      "dataset": "email-euall",
+      "k": 4,
+      "q": 12,
+      "suite": "perf_extended",
+      "paper_count_hint": 1940182978,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 7085.39,
+          "ListPlex": 6041.73,
+          "PlexEnum": 3535.63
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "soc-slashdot-k3-q12",
+      "dataset": "soc-slashdot",
+      "k": 3,
+      "q": 12,
+      "suite": "perf_extended",
+      "paper_count_hint": 3306582222,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 10368.47,
+          "ListPlex": 8910.28,
+          "PlexEnum": 5995.67
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "soc-slashdot-k3-q20",
+      "dataset": "soc-slashdot",
+      "k": 3,
+      "q": 20,
+      "suite": "perf_extended",
+      "paper_count_hint": 1610097574,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 3950.16,
+          "ListPlex": 5244.41,
+          "PlexEnum": 3377.68
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "soc-slashdot-k4-q30",
+      "dataset": "soc-slashdot",
+      "k": 4,
+      "q": 30,
+      "suite": "perf_extended",
+      "paper_count_hint": 1047289095,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 3,
+        "pdf_page": 10,
+        "reported_execution": "sequential",
+        "times_s": {
+          "FP": 4167.85,
+          "ListPlex": 10239.25,
+          "PlexEnum": 4016.08
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "enwiki-2021-k3-q50",
+      "dataset": "enwiki-2021",
+      "k": 3,
+      "q": 50,
+      "suite": "perf_large",
+      "paper_count_hint": 40997,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 4,
+        "pdf_page": 11,
+        "reported_execution": "parallel_16_threads",
+        "times_s": {
+          "FP": 19056.73,
+          "ListPlex": 3860.17,
+          "PlexEnum": 1008.26
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "it-2004-k2-q1000",
+      "dataset": "it-2004",
+      "k": 2,
+      "q": 1000,
+      "suite": "perf_large",
+      "paper_count_hint": 66067542,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 4,
+        "pdf_page": 11,
+        "reported_execution": "parallel_16_threads",
+        "times_s": {
+          "FP": 1958.7,
+          "ListPlex": 2053.83,
+          "PlexEnum": 934.8
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "it-2004-k3-q2000",
+      "dataset": "it-2004",
+      "k": 3,
+      "q": 2000,
+      "suite": "perf_large",
+      "paper_count_hint": 197679229,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 4,
+        "pdf_page": 11,
+        "reported_execution": "parallel_16_threads",
+        "times_s": {
+          "FP": 17785.82,
+          "ListPlex": 458.83,
+          "PlexEnum": 401.13
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "webbase-2001-k3-q800",
+      "dataset": "webbase-2001",
+      "k": 3,
+      "q": 800,
+      "suite": "perf_large",
+      "paper_count_hint": 1785341050,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 4,
+        "pdf_page": 11,
+        "reported_execution": "parallel_16_threads",
+        "times_s": {
+          "FP": 15446.46,
+          "ListPlex": 3312.95,
+          "PlexEnum": 3014.44
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    },
+    {
+      "id": "arabic-2005-k2-q900",
+      "dataset": "arabic-2005",
+      "k": 2,
+      "q": 900,
+      "suite": "perf_large",
+      "paper_count_hint": 224870898,
+      "paper_reference": {
+        "audit": "evaluation/2026-10-25-paper-audit/candidates.json",
+        "paper": "Cheng EDBT2025",
+        "table": 4,
+        "pdf_page": 11,
+        "reported_execution": "parallel_16_threads",
+        "times_s": {
+          "FP": 1873.71,
+          "ListPlex": 417.91,
+          "PlexEnum": 388.42
+        }
+      },
+      "count_acceptance": "Reference result on the same pinned normalized input; paper count is a hint, not ground truth",
+      "provenance_issue": null
+    }
+  ],
+  "optional_stress_cases": [
+    {
+      "id": "brock200-4-k3-q20",
+      "dataset": "brock200-4",
+      "k": 3,
+      "q": 20,
+      "suite": "perf_stress_optional",
+      "paper_evidence": {
+        "dataset": "brock200-4",
+        "k": 3,
+        "q": 20,
+        "count_reported": 19227523,
+        "FP_s": 85958.46,
+        "source": "Dai CIKM2022 Table2 PDFp8 printed352",
+        "other_two_methods": "not reported"
+      },
+      "default_enabled": false,
+      "execution": "remote only; explicit selection within a planned batch, not routine development"
+    },
+    {
+      "id": "brock200-4-k3-q10",
+      "dataset": "brock200-4",
+      "k": 3,
+      "q": 10,
+      "suite": "perf_stress_optional",
+      "paper_evidence": {
+        "dataset": "brock200-4",
+        "k": 3,
+        "q": 10,
+        "count_reported": null,
+        "FP_status": "INF (>86400s)",
+        "source": "Dai CIKM2022 Table2 PDFp8 printed352",
+        "other_two_methods": "not reported"
+      },
+      "default_enabled": false,
+      "execution": "remote only; explicit selection within a planned batch, not routine development"
+    },
+    {
+      "id": "p_hat700-1-k3-q20",
+      "dataset": "p_hat700-1",
+      "k": 3,
+      "q": 20,
+      "suite": "perf_stress_optional",
+      "paper_evidence": {
+        "dataset": "p_hat700-1",
+        "k": 3,
+        "q": 20,
+        "count_reported": 0,
+        "FP_s": 1343.98,
+        "source": "Dai CIKM2022 Table2 PDFp8 printed352",
+        "other_two_methods": "not reported"
+      },
+      "default_enabled": false,
+      "execution": "remote only; explicit selection within a planned batch, not routine development"
+    },
+    {
+      "id": "soc-epinions-k3-q12",
+      "dataset": "soc-epinions",
+      "k": 3,
+      "q": 12,
+      "suite": "perf_stress_optional",
+      "paper_evidence": {
+        "dataset": "soc-epinions",
+        "k": 3,
+        "q": 12,
+        "FP_s": 42414.6,
+        "source": "Dai CIKM2022 Table3 PDFp8 printed352",
+        "other_two_methods": "not reported at same setting"
+      },
+      "default_enabled": false,
+      "execution": "remote only; explicit selection within a planned batch, not routine development"
+    },
+    {
+      "id": "as-skitter-k3-q50",
+      "dataset": "as-skitter",
+      "k": 3,
+      "q": 50,
+      "suite": "perf_stress_optional",
+      "paper_evidence": {
+        "dataset": "as-skitter",
+        "k": 3,
+        "q": 50,
+        "ListPlex_status": "OOT (>43200s)",
+        "source": "Wang WWW2022 Table3 PDFp8",
+        "FP_and_PlexEnum": "not reported at this setting in audited EDBT tables"
+      },
+      "default_enabled": false,
+      "execution": "remote only; explicit selection within a planned batch, not routine development"
+    }
+  ],
+  "performance_protocol": {
+    "max_concurrent_benchmark_processes": 1,
+    "shuffle_seed": 20261025,
+    "repeat_min": 3,
+    "require_correctness_before_timing": true,
+    "baseline_speedup": "T(candidate, native Parlay, P=1) / T(same candidate build, P)",
+    "end_to_end_improvement": "T(frozen reference, one thread) / T(candidate, P workers)",
+    "separate_paper_comparison": true,
+    "peers": "FP/PlexEnum are optional release-level author-code comparisons, not required for every development edit",
+    "timings": [
+      "loading_s",
+      "core_decomposition_s",
+      "subgraph_construction_s",
+      "enumeration_s",
+      "end_to_end_s"
+    ],
+    "memory": [
+      "peak_rss",
+      "per_thread_scratch",
+      "per_task_state",
+      "matrix/shared_graph",
+      "peak_live_tasks"
+    ],
+    "optional_diagnostics": [
+      "tasks_created/executed/stolen",
+      "queue_peak",
+      "idle_or_wait_s",
+      "task_duration_distribution",
+      "nodes_or_branches",
+      "copied_bytes",
+      "allocation_count",
+      "algorithmic search-work differences from frozen reference and candidate one-worker control"
+    ],
+    "timeout_policy": "Record censored/incomplete result; never zero answers, never completed-time or speedup denominator",
+    "paper_comparability": "Paper excludes loading; compare separately recorded compute-only time, never mix platforms or thread counts",
+    "run_metadata": [
+      "source SHA/dirty patch",
+      "baseline archive SHA",
+      "input SHA and normalization",
+      "n,m",
+      "compiler/flags/runtime",
+      "host CPU/affinity/quota/NUMA/virtualization/load",
+      "requested/observed threads",
+      "seed and task threshold",
+      "start/end time",
+      "timeout/memory/batch budget",
+      "exit/status/count",
+      "raw stdout/stderr",
+      "wall time and peak RSS",
+      "Parlay fork/revision/native scheduler/backend",
+      "PARLAY_NUM_THREADS and observed num_workers",
+      "technique ID/branch/base/implementation commit",
+      "fixed defaults and all non-input parameters",
+      "development/held-out role and rejected/missing cases"
+    ],
+    "candidate_workers": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      20
+    ],
+    "reference_workers": 1,
+    "parallel_non_regression_baseline": "Same-worker best accepted Parlay implementation; for first runtime-port technique, also use the archived OpenMP parallel control as an explicitly labelled historical comparator."
+  },
+  "runtime_policy": "tests/runtime-policy.json",
+  "technique_ledger": "technique.md",
+  "mainline_branch": "armAndX86",
+  "small_and_sweet": {
+    "theory": "Explain W_local and total W/S on the actual candidate DAG, charging copying/initialization/synchronization/packing/allocation/output. Preserve a same-or-better comparable asymptotic reference work bound under common parameters/models/assumptions. Local algorithm changes are allowed; do not claim input-by-input O(actual reference work) or an unchanged search tree without proof. No hidden worker-dependent or logarithmic inflation.",
+    "simplicity": "One clear idea per branch; prefer native Parlay primitives; no dataset/hardware dispatch tables; prefer zero new tuning knobs; universal justified defaults only.",
+    "generalization": "Require paired same-input tests at one worker and multiple workers, across core cases, intermediate cases and predeclared held-out graph families. Persistent clear per-case serial or parallel regressions reject a technique even when geometric-mean speedup improves.",
+    "noise": "At least three interleaved repetitions; investigate apparent regressions with additional paired repetitions; inconclusive/noisy/missing measurements remain pending, not accepted.",
+    "closure": "Accepted only after both theory and experiment gates pass. A demonstrated inability to meet either gate closes as rejected with reasons on mainline technique.md; missing data/tooling is a non-terminal pending/blocked state."
+  },
+  "generalization_protocol": {
+    "development_cases": [
+      "jazz-k3-q10",
+      "grqc-k3-q10",
+      "wiki-vote-k4-q20",
+      "soc-epinions-k4-q30"
+    ],
+    "held_out_core_cases": [
+      "com-dblp-k4-q12",
+      "soc-pokec-k4-q20",
+      "as-skitter-k3-q60"
+    ],
+    "required_for_acceptance": [
+      "dev_smoke",
+      "dev_regression",
+      "remote_sanity",
+      "all perf_core cases including held-out cases"
+    ],
+    "additional_scope": "If a technique claims large-graph scheduling/memory benefits, predeclare representative perf_large case(s), complete them before accepting that claim, and retain every selected result.",
+    "missing_case_policy": "Pending evidence, not a pass; do not silently drop or replace the held-out case",
+    "selection_freeze": "Record the development/held-out split, same-worker comparison baseline and resource budget in technique.md before implementation; do not retune on held-out failures and still call them held out."
+  },
+  "branch_protocol": {
+    "mainline": "armAndX86",
+    "english_ledger": "technique.md",
+    "naming": "technique/<id>-<short-english-name>",
+    "one_idea_per_branch": true,
+    "implementation_on_mainline": false,
+    "documentation_maintenance_on_mainline": true,
+    "terminal_statuses": [
+      "accepted",
+      "rejected"
+    ],
+    "nonterminal_statuses": [
+      "planned",
+      "in_progress",
+      "pending_evidence",
+      "blocked"
+    ],
+    "preserve_rejected_branches": true
+  },
+  "algorithm_adaptation_policy": {
+    "allowed": true,
+    "scope": "Parallel-motivated local changes to implementation or algorithm: pivot, branching, pruning, search/task partition, recovery, maximality implementation. Necessary adaptations can be part of one main technique.",
+    "immutable_control": "Do not modify the frozen reference or its expected answers to match a candidate.",
+    "required_invariant": "Same k-plex enumeration problem and complete, duplicate-free globally maximal result sets for identical normalized input and k/q.",
+    "not_required": [
+      "Source-level identity",
+      "Identical search tree or visited-node counts",
+      "Additional permission solely because local algorithm logic changes"
+    ],
+    "documentation": "Mainline English technique.md must explain parallel obstacle, exact algorithm changes, correctness argument, comparable work/span/space analysis and experiments.",
+    "additional_checks": [
+      "Targeted independent-oracle and counterexample regression",
+      "Measure candidate P=1 and P>1 and report search-work differences",
+      "Distinguish algorithmic improvement from runtime/scheduling speedup"
+    ]
+  }
+}

@@ -156,3 +156,11 @@ $ ./MKP -f {file_path} -m "maximal" -b -k {k-value} -t {time_limit} -l {lower_bo
 Maximal k-plex storage grows with actual graph and block sizes. Graph views share buffer ownership. The default minimum size is `2*k-1`; an explicitly smaller `-l` is rejected with exit status 2. `-k` must be positive, `-l` nonnegative, and integer parameters must not exceed `INT_MAX/4`. `-t` must be finite and within `[0,86400]`. Malformed values are rejected. Enumeration counts use an unsigned 64-bit counter. Search, branching and pruning rules remain unchanged.
 
 Long tests and benchmarks follow the parent project `AGENTS.md` and `config.md` and run on the configured Ubuntu host.
+
+## Parallel algorithm development and test tiers
+
+Future work keeps the hardened serial reference immutable while allowing parallel-motivated local implementation and algorithm changes in candidate branches, preserving the enumeration problem and correct result sets. Read [the development policy](docs/parallel-development.md) and [repository instructions](AGENTS.md). The [test suite manifest](tests/test-suites.json) separates local development smoke checks, remote correctness regression, intermediate checks, and paper-audited challenging performance cases. The immutable one-thread reference is pinned in [the baseline manifest](tests/baselines/listplex-hardened-2026-10-25.json). This manifest is a declarative plan; historical benchmark runners do not automatically consume it.
+
+New candidates use the native scheduler from [the selected ParlayLib fork](https://github.com/joey001/parlaylib.git), with `PARLAY_NUM_THREADS` controlling workers. [GBBS](https://github.com/ParAlg/gbbs) is an optional reference. Read the English [technique ledger](technique.md) and [runtime contract](tests/runtime-policy.json): one branch per technique, complete work/span accounting, few universal defaults, and broad serial/parallel non-regression before accepting a small-and-sweet technique. Historical OpenMP build instructions apply to the archived implementation, not the new candidate runtime.
+
+Candidate techniques may adapt pivots, branches, pruning or partitioning when needed for parallelism; document the reason, correctness argument, comparable work/span bounds and experimental effects in the mainline technique ledger. The small-and-sweet and broad non-regression gates continue to apply.
