@@ -211,6 +211,15 @@ public:
 		memset(buf,0,sizeof(uint32_t)*(n+1));
 	}
 
+    // Clear only the current [0,range) universe. Callers must ensure all bits
+    // above range are already zero; unlike clear(), this is not a full reset.
+    void clearPrefix(int range) {
+        assert(range >= 0 && range <= cap);
+        const size_t words = (size_t(range) + 31) / 32;
+        if (words) memset(buf, 0, words * sizeof(uint32_t));
+    }
+
+
 	//FLIP all the bits
 	void flip() {
 		for (int i = 0; i <= n; ++i)

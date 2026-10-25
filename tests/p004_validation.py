@@ -11,7 +11,7 @@ import re, resource, shutil, signal, struct, subprocess, tarfile, time
 PROJECT=pathlib.Path('/home/joey/k-plex-rethinki-ubuntu')
 REPO=pathlib.Path(__file__).resolve().parents[1]
 CANON=PROJECT/'relaxclq'
-BUILD=PROJECT/'build/p004'
+BUILD=PROJECT/'build/p004-r2'
 REFSRC=PROJECT/'src/p001-reference'
 ARCHIVE_SHA='ae76855e71a296f233fab5322bcf9b6ec07fca07b35e619b895cf0e386f7e104'
 CPP=['maximal_kplex/toBin.cpp','maximal_clique/util.cpp','maximal_clique/set_operation.cpp','maximal_clique/bitpack_maximal_clique.cpp','maximum_clique/GraphClique.cpp','maximum_kplex/Graph.cpp','main.cpp','maximal_kplex/listPlex.cpp']
@@ -249,12 +249,14 @@ class Runner:
      self.run(label+f'-repeat{rep+1}',self.emit,path,k,q,p,len(expected),expected)
  def sanitizers(self):
   include=str(PROJECT/'deps/parlaylib/include')
-  flags=['-std=c++17','-pthread','-O1','-g','-DTARGET','-msse4.2','-I.','-I'+include,'-fsanitize=address,undefined','-fno-omit-frame-pointer']
+  flags=['-std=c++17','-pthread','-DPARLAY_ELASTIC_PARALLELISM=0','-O1','-g','-DTARGET','-msse4.2','-I.','-I'+include,'-fsanitize=address,undefined','-fno-omit-frame-pointer']
   command(['g++',*flags,'-DLISTPLEX_EMIT_SOLUTIONS',*CPP,'-o',str(BUILD/'candidate-asan')],REPO,BUILD/'candidate-asan.build.log')
   command(['g++',*flags,'maximal_kplex/toBin.cpp','maximal_kplex/listPlex.cpp','tests/p004_ownership_driver.cpp','-o',str(BUILD/'candidate-ownership-asan')],REPO,BUILD/'candidate-ownership-asan.build.log')
   self.identities[str(BUILD/'candidate-asan')]=sha(BUILD/'candidate-asan')
   self.identities[str(BUILD/'candidate-ownership-asan')]=sha(BUILD/'candidate-ownership-asan')
   command(['g++',*flags,'tests/p004_flags_smoke.cpp','-o',str(BUILD/'flags-asan')],REPO,BUILD/'flags-asan.build.log')
+  command(['g++',*flags,'tests/p004_prefix_smoke.cpp','-o',str(BUILD/'prefix-asan')],REPO,BUILD/'prefix-asan.build.log')
+  self.run('prefix-growth-asan',BUILD/'prefix-asan',args=[],sanitizer=True,worker_check=False)
   self.run('packed-flags-asan',BUILD/'flags-asan',args=[],sanitizer=True,worker_check=False)
   self.run('storage-asan',BUILD/'storage',args=[],sanitizer=True,worker_check=False)
   for n in (5,520,4100):

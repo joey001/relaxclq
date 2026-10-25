@@ -503,7 +503,7 @@ namespace ListPlex
                 for (int u:blk) inBlk[u]=false;
                 for (int u:left) inLeft[u]=false;
                 listor.plexToCand1();
-                cand1.clear();cand2.clear();
+                cand1.clearPrefix(blkSz);cand2.clearPrefix(blkSz);
             }
             results[stream]=result;
         },1);

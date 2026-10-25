@@ -170,3 +170,38 @@ or 2, including ASan P4; inputs reuse independently hashed P002 fixtures.
 
 Correctness performance admission is passed; speed/scalability and the
 small-and-sweet experimental gate remain pending.
+
+## R2: charged prefix clearing and reliable native cold start
+
+R1 source and binaries remain immutable as commits through 41c5dac and
+build/p004. Diagnostic copies live separately in src/p004-stream-diagnostic-41c5dac
+and build/p004-diagnostic, with post-join traces in runs/p004-scheduler-diagnostic.
+R2 uses the same pinned native Parlay scheduler with the fixed compile-time
+PARLAY_ELASTIC_PARALLELISM=0 across every candidate translation unit and
+sanitizer build. Header guards reject a missing/elastic macro. No runtime knob,
+thread pool, barrier, artificial warmup, per-input dispatch or scheduler source
+patch is introduced. This removes the pinned elastic startup's missed-wakeup
+interleaving, in which the first right callback remains asleep while the first
+stream drains every root. All R2 outputs go to build/p004-r2.
+
+R1 historical full-capacity clear has a sharper counterexample: a disjoint
+H-leaf star followed in degeneracy order by Theta(N) triangles, k=2/q=3.
+For H=N^(1/4), sum b_i^2 + sum deg^2=O(N), but retained flag capacity causes
+Omega(N*H/32) clearing. The previous common N*Delta^2 envelope is valid but
+too loose to establish root-materialization-chargeable work. R2 replaces only
+root-end cand1/cand2 resets with explicit clearPrefix(b). It zeros ceil(b/32)
+words and resets sz, preserving allocated capacity. Root IDs lie in [0,b).
+Inductively all higher bits are zero: initial buffers are zero; a previous
+larger root reset its full used prefix; reserve zeroes newly allocated words
+and copies the previously zero state. Rounded tail and unused sentinel words
+stay zero, including when b is divisible by 32. The size_t ceil avoids signed
+integer addition overflow. Prefix clearing costs O(1+b/32), charged to current
+root materialization; the historical C_clear term is eliminated.
+
+The nonelastic native runtime performs idle stealing while a worker has no
+callback. Solver useful work retains the stated Q*N and per-root accounting;
+actual CPU overhead of scheduler steals, OS startup and idle waiting is a
+runtime cost measured separately, not a claim of deterministic constant-cost
+waiting. No performance result or R2 acceptance is assumed. Fresh correctness
+gates, bitset 0/1/31/32/33 and large/small growth checks, and a star72 plus eight
+triangles (exactly 2564 maximal k-plexes) precede new timings.

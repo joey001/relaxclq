@@ -131,6 +131,14 @@ public:
         sz = 0;                
     }
 
+    // At a root boundary only [0,universe) may have changed membership.
+    // A prior larger root cleared its own universe; growth zeroes new words.
+    void clearPrefix(int universe){
+        assert(universe >= 0 && universe <= cap);
+        flag->clearPrefix(universe);
+        sz = 0;
+    }
+
     void clearByEle(){
         for(int i=0;i<sz;++i){
             flag->set(members[i]);

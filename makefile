@@ -48,7 +48,7 @@ clean:
 # P004 native Parlay root tasks. Override PARLAY_ROOT for another checkout.
 P004_PROJECT_ROOT ?= $(abspath $(dir $(firstword $(wildcard ../execution-environments.json ../../execution-environments.json))))
 PARLAY_ROOT ?= $(P004_PROJECT_ROOT)/deps/parlaylib
-P004_OUT ?= $(P004_PROJECT_ROOT)/build/p004
+P004_OUT ?= $(P004_PROJECT_ROOT)/build/p004-r2
 P004_FLAGS ?= -O3 -DNDEBUG -march=native
 P004_SOURCES = maximal_kplex/toBin.cpp maximal_clique/util.cpp maximal_clique/set_operation.cpp maximal_clique/bitpack_maximal_clique.cpp maximum_clique/GraphClique.cpp maximum_kplex/Graph.cpp main.cpp maximal_kplex/listPlex.cpp
 P004_HEADERS = $(wildcard maximal_kplex/*.h)
@@ -57,7 +57,7 @@ parlay-root-streams: $(P004_OUT)/MKP
 parlay-root-streams-emit: $(P004_OUT)/MKP-emit
 $(P004_OUT)/MKP: $(P004_SOURCES) $(P004_HEADERS)
 	mkdir -p $(P004_OUT)
-	$(CXX) -std=c++17 -pthread -msse4.2 -DTARGET $(P004_FLAGS) -I$(PARLAY_ROOT)/include $(P004_SOURCES) -o $@
+	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET $(P004_FLAGS) -I$(PARLAY_ROOT)/include $(P004_SOURCES) -o $@
 $(P004_OUT)/MKP-emit: $(P004_SOURCES) $(P004_HEADERS)
 	mkdir -p $(P004_OUT)
-	$(CXX) -std=c++17 -pthread -msse4.2 -DTARGET -DLISTPLEX_EMIT_SOLUTIONS $(P004_FLAGS) -I$(PARLAY_ROOT)/include $(P004_SOURCES) -o $@
+	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET -DLISTPLEX_EMIT_SOLUTIONS $(P004_FLAGS) -I$(PARLAY_ROOT)/include $(P004_SOURCES) -o $@

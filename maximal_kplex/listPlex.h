@@ -1,5 +1,8 @@
 #ifndef LISTPLEX_H
 #define LISTPLEX_H
+#if !defined(PARLAY_ELASTIC_PARALLELISM) || PARLAY_ELASTIC_PARALLELISM
+#error "P004 R2 requires fixed native PARLAY_ELASTIC_PARALLELISM=0"
+#endif
 extern int k,lb,bd;
 extern double time_limit;
 #include <cassert>
