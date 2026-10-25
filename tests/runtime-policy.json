@@ -64,6 +64,8 @@
     "Check observed parlay::num_workers() equals requested workers",
     "Use the same native scheduler build at P=1 and P>1",
     "Do not create a separate scheduler/thread pool inside each root or recursive call",
-    "Apply verified process CPU affinity; OMP_PLACES and OMP_PROC_BIND do not bind Parlay workers"
-  ]
+    "Apply verified process CPU affinity; OMP_PLACES and OMP_PROC_BIND do not bind Parlay workers",
+    "Resolve host profile first; when already on the Ubuntu test host, execute directly without SSH to self."
+  ],
+  "execution_policy": "tests/execution-policy.json"
 }

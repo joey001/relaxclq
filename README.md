@@ -164,3 +164,7 @@ Future work keeps the hardened serial reference immutable while allowing paralle
 New candidates use the native scheduler from [the selected ParlayLib fork](https://github.com/joey001/parlaylib.git), with `PARLAY_NUM_THREADS` controlling workers. [GBBS](https://github.com/ParAlg/gbbs) is an optional reference. Read the English [technique ledger](technique.md) and [runtime contract](tests/runtime-policy.json): one branch per technique, complete work/span accounting, few universal defaults, and broad serial/parallel non-regression before accepting a small-and-sweet technique. Historical OpenMP build instructions apply to the archived implementation, not the new candidate runtime.
 
 Candidate techniques may adapt pivots, branches, pruning or partitioning when needed for parallelism; document the reason, correctness argument, comparable work/span bounds and experimental effects in the mainline technique ledger. The small-and-sweet and broad non-regression gates continue to apply.
+
+## Ubuntu development workspace
+
+The primary project root is `/home/joey/k-plex-rethinki-ubuntu`; this Git repository is its `relaxclq/` child. When developing there, the development host and test host are the same machine: compile and run all test tiers directly, using local tmux for long jobs. Do not SSH to the same server again. Resolve paths and budgets with `python3 ../tools/project-context.py --operation inventory`; see the parent `config.md` and `execution-environments.json`. Historical `remote` suite names refer to the Ubuntu test host, not a required network hop.

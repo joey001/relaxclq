@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "authoritative_profiles": "../execution-environments.json (relative to repository root)",
+  "resolver": "../tools/project-context.py",
+  "primary_profile": "ubuntu-server",
+  "test_profile": "ubuntu-server",
+  "ubuntu_development_equals_test": true,
+  "ubuntu_transport": "direct",
+  "windows_heavy_transport": "ssh",
+  "legacy_remote_alias": "ubuntu-test-host",
+  "smoke_workers": 4,
+  "ubuntu_total_worker_cap": 20,
+  "windows_smoke_limits": {
+    "max_cases": 20,
+    "max_total_s": 120,
+    "max_workers": 4
+  },
+  "no_self_ssh": true,
+  "test_policy": "Host labels choose a physical execution site, not a network transport. Host identity determines direct versus SSH execution."
+}

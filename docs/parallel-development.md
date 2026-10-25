@@ -2,6 +2,10 @@
 
 本约定用于基于指定ParlayLib原生调度器的并行算法、任务划分、数据结构和内存布局探索。以固定归档ListPlex为独立参考，允许候选为并行化调整局部实现和算法；本次只登记规则和测试集，没有启动实验或补下载图。机器与资源约束继续以项目根目录 `config.md` 为准。
 
+## 所在主机决定执行方式
+
+迁移后主开发仓库为 `/home/joey/k-plex-rethinki-ubuntu/relaxclq`。在Ubuntu直接开发时，开发和测试同机，所有层级都直接本机执行，长任务放本机tmux，不再SSH自己；Windows副本的完整回归和性能才需要派发Ubuntu。文中“远程”、remote_sanity以及旧where=remote统一指Ubuntu测试主机，不必然是异机。Windows120秒/20例限制仅决定笔记本是否转Ubuntu，Ubuntu烟测默认4workers，重任务仍受20workers/160GiB/可用内存70%限制。以根目录config.md、execution-environments.json和tools/project-context.py的实际host判定为准，不能按层级名强制SSH。新清单的where=ubuntu-test-host表达同一含义。
+
 ## ParlayLib 与 small-and-sweet 约束
 
 - 后续候选实现统一使用 `https://github.com/joey001/parlaylib.git` 的原生work-stealing调度器，初始固定版本 `51017699dcc421f80479cdb238d3092233ad0d26`。依赖和后端契约见 `tests/runtime-policy.json`；当前只固定配置，尚未引入、构建或运行依赖。
@@ -41,7 +45,7 @@
 
 | 层级 | 图/参数或范围 | 目的与位置 |
 | --- | --- | --- |
-| dev_smoke | jazz(3,10)、ca-GrQc(3,10)、K5(3,5)、空图、六顶点边界反例、K520(2,520)及存储单元检查 | 日常本地正确性；参考1线程+候选1/4个Parlay worker共18次，加1次存储检查，共19次；单例10秒，总计120秒，超出转远端 |
+| dev_smoke | jazz(3,10)、ca-GrQc(3,10)、K5(3,5)、空图、六顶点边界反例、K520(2,520)及存储单元检查 | 日常本地正确性；参考1线程+候选1/4个Parlay worker共18次，加1次存储检查，共19次；单例10秒；Windows总计120秒，超出转Ubuntu；Ubuntu直接本机执行 |
 | dev_regression | 全部五顶点图2048组、种子20261025的186组随机参数、小图多线程压力和消毒器、K512/K520/K4100/CLI/文本转换 | 远程完整回归；k=2…6、q=2k−1与2k；小图逐集合核对、检查重复与计数 |
 | remote_sanity | jazz(4,12)、Enron(3,20)、wiki-vote(3,20)、DBLP(3,20) | 远程中间档；验证多根块、多任务与不同线程，不用作主要困难性能证据 |
 | perf_core | wiki-vote(4,20)、soc-epinions(4,30)、com-dblp(4,12)、soc-pokec(4,20)、as-skitter(3,60) | 第一批远程性能/扩展测试；按本次假设选择代表案例 |
@@ -55,10 +59,10 @@
 
 1. 查看diff，明确保留的问题/输出语义、允许改变的局部算法、正确性依据、任务边界及状态所有权，选定本次候选版本与测试子集；算法条件改变不自动要求另行许可。
 2. 仅计数的参考程序在小图集合核对时，使用已有逐解输出插桩思路：只增加emitter与原始ID映射，不改搜索/剪枝；保存插桩补丁，不能将它与release计时构建混用。运行dev_smoke；小图比较排序后的原始ID集合，输出行数等于去重集合大小；真实图核对固定输入哈希及计数。不能只比较两个都可能错误的新实现。
-3. 在对应技术分支改动搜索状态表示、任务分裂、队列、窃取、共享可变数据或内存池时，进入远端dev_regression：候选1/4个Parlay worker对独立oracle和参考核对；代表性小图再以2/8/16/20线程各重复3次，检查不稳定错误。
+3. 在对应技术分支改动搜索状态表示、任务分裂、队列、窃取、共享可变数据或内存池时，在Ubuntu测试主机执行dev_regression（已在Ubuntu则本机运行）：候选1/4个Parlay worker对独立oracle和参考核对；代表性小图再以2/8/16/20线程各重复3次，检查不稳定错误。
 4. 内存或所有权变化运行ASan+UBSan+泄漏检查。并发状态变化在工具/运行库兼容时补充ThreadSanitizer；若不兼容明确记录未覆盖，不能把工具失败记作通过，仍需重复的小图逐集合压力检查。消毒器构建与release计时分开。
 5. 通过正确性后跑remote_sanity，再选perf_core；根据研究目标扩展到extended或large。不可直接用挑战图作为调试用例；不因机器可用自动展开全部层级。
-6. 在主分支英文technique.md汇总理论与实验，依据small-and-sweet作accepted/rejected或未完成判断。合入或声明改进前，保存对应正确性日志与至少三次远端计时、峰值RSS及输入/源码哈希。性能测试未完成就标未完成，不用论文耗时填补，也不把未下载图列为已通过。
+6. 在主分支英文technique.md汇总理论与实验，依据small-and-sweet作accepted/rejected或未完成判断。合入或声明改进前，保存对应正确性日志与至少三次Ubuntu测试主机计时、峰值RSS及输入/源码哈希。性能测试未完成就标未完成，不用论文耗时填补，也不把未下载图列为已通过。
 
 ## 性能比较与资源约束
 

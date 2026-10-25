@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "path_base": "relaxclq repository root",
   "policy": "docs/parallel-development.md",
   "resource_policy": "../config.md",
@@ -184,7 +184,7 @@
   "suites": {
     "dev_smoke": {
       "purpose": "Local development correctness, never a speedup benchmark",
-      "where": "local_if_within_budget_else_remote",
+      "where": "current-development-host-for-smoke-with-windows-budget-routing",
       "run_variants": [
         {
           "label": "reference-one-thread",
@@ -329,7 +329,7 @@
       ]
     },
     "dev_regression": {
-      "where": "remote",
+      "where": "ubuntu-test-host",
       "comparison": "exact_sets with independent oracle, deduplicated-set count equals emitted count",
       "exhaustive": {
         "n": 5,
@@ -410,7 +410,7 @@
       "additional_trigger": "Local algorithm/logic changes require targeted oracle/counterexample tests as well as the existing semantic, duplicate and concurrency regressions."
     },
     "remote_sanity": {
-      "where": "remote",
+      "where": "ubuntu-test-host",
       "purpose": "Intermediate correctness gate before challenging performance; these are not the hard benchmark set",
       "repetitions": 1,
       "case_timeout_s": 60,
@@ -448,19 +448,19 @@
       ]
     },
     "perf_core": {
-      "where": "remote",
+      "where": "ubuntu-test-host",
       "selection": "First performance tier; only selected, prepared cases, not automatic full sweep",
       "initial_case_timeout_s": 1800,
       "repetitions_min": 3
     },
     "perf_extended": {
-      "where": "remote",
+      "where": "ubuntu-test-host",
       "selection": "Heavy-output tier after correctness and core results; plan total batch time",
       "initial_case_timeout_s": 21600,
       "repetitions_min": 3
     },
     "perf_large": {
-      "where": "remote",
+      "where": "ubuntu-test-host",
       "selection": "Large graph and parallel scheduling tier after data provenance and peak-memory planning",
       "initial_case_timeout_s": 21600,
       "per_process_memory_gib": null,
@@ -468,7 +468,7 @@
       "repetitions_min": 3
     },
     "perf_stress_optional": {
-      "where": "remote",
+      "where": "ubuntu-test-host",
       "selection": "Not a default gate; extreme, >12h/24h, zero-output, or only one paper reports this setting",
       "default_enabled": false,
       "case_timeout_s": null,
@@ -890,7 +890,7 @@
         "other_two_methods": "not reported"
       },
       "default_enabled": false,
-      "execution": "remote only; explicit selection within a planned batch, not routine development"
+      "execution": "Ubuntu test host, direct execution when already there; explicit selection within a planned batch, not routine development"
     },
     {
       "id": "brock200-4-k3-q10",
@@ -908,7 +908,7 @@
         "other_two_methods": "not reported"
       },
       "default_enabled": false,
-      "execution": "remote only; explicit selection within a planned batch, not routine development"
+      "execution": "Ubuntu test host, direct execution when already there; explicit selection within a planned batch, not routine development"
     },
     {
       "id": "p_hat700-1-k3-q20",
@@ -926,7 +926,7 @@
         "other_two_methods": "not reported"
       },
       "default_enabled": false,
-      "execution": "remote only; explicit selection within a planned batch, not routine development"
+      "execution": "Ubuntu test host, direct execution when already there; explicit selection within a planned batch, not routine development"
     },
     {
       "id": "soc-epinions-k3-q12",
@@ -943,7 +943,7 @@
         "other_two_methods": "not reported at same setting"
       },
       "default_enabled": false,
-      "execution": "remote only; explicit selection within a planned batch, not routine development"
+      "execution": "Ubuntu test host, direct execution when already there; explicit selection within a planned batch, not routine development"
     },
     {
       "id": "as-skitter-k3-q50",
@@ -960,7 +960,7 @@
         "FP_and_PlexEnum": "not reported at this setting in audited EDBT tables"
       },
       "default_enabled": false,
-      "execution": "remote only; explicit selection within a planned batch, not routine development"
+      "execution": "Ubuntu test host, direct execution when already there; explicit selection within a planned batch, not routine development"
     }
   ],
   "performance_protocol": {
@@ -1096,5 +1096,7 @@
       "Measure candidate P=1 and P>1 and report search-work differences",
       "Distinguish algorithmic improvement from runtime/scheduling speedup"
     ]
-  }
+  },
+  "execution_policy": "tests/execution-policy.json",
+  "host_resolution": "Resolve actual host first. On ubuntu-server all tiers run directly; on Windows only budgeted smoke is local. Historical remote values are aliases of ubuntu-test-host, never a requirement to SSH to oneself."
 }
