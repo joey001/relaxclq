@@ -317,22 +317,11 @@ namespace sequence
   template <class intT>
   intT sumFlagsSerial(bool *Fl, intT n)
   {
+    // Reading bool objects directly avoids the old signed packed-word sum
+    // overflow and its int*/bool* aliasing assumption. The result is <= n.
     intT r = 0;
-    if (n >= 128 && (n & 511) == 0 && ((long long)Fl & 3) == 0)
-    {
-      int *IFl = (int *)Fl;
-      for (int k = 0; k < (n >> 9); k++)
-      {
-        int rr = 0;
-        for (int j = 0; j < 128; j++)
-          rr += IFl[j];
-        r += (rr & 255) + ((rr >> 8) & 255) + ((rr >> 16) & 255) + ((rr >> 24) & 255);
-        IFl += 128;
-      }
-    }
-    else
-      for (intT j = 0; j < n; j++)
-        r += Fl[j];
+    for (intT j = 0; j < n; ++j)
+      r += Fl[j];
     return r;
   }
 
