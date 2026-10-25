@@ -19,6 +19,12 @@ namespace ListPlex
             members = new T[cap];
             memcpy(members, _stk.members, sizeof(T) * sz);
         }
+        // A child restores only its own stack frames; retain the live prefix.
+        Stack(const Stack& source,int universe) : sz(source.sz),cap(universe) {
+            assert(universe>=sz && universe<=source.cap);
+            members=new T[cap];
+            if (sz) memcpy(members,source.members,sizeof(T)*sz);
+        }
         ~Stack() { delete[] members; }
 
         inline void push(const T &v)

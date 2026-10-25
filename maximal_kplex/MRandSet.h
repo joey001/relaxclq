@@ -42,6 +42,20 @@ public:
         flag = new MBitSet32(*(_set.flag));        
         
     }
+    // Compact snapshot of the current root universe, not retained capacity.
+    // Keep removed suffix/positions and fake-remove flag semantics verbatim.
+    RandSet(const RandSet& source,int universe)
+        : sz(source.sz),cap(universe),members(new T[universe]),
+          pos(new TIndex[universe]),flag(new MBitSet32(universe)) {
+        assert(universe>=0 && universe<=source.cap && sz<=universe);
+        if (universe) {
+            memcpy(members,source.members,sizeof(T)*universe);
+            memcpy(pos,source.pos,sizeof(TIndex)*universe);
+        }
+        memcpy(flag->buf,source.flag->buf,sizeof(uint32_t)*(flag->n+1));
+        const unsigned tail=unsigned(universe)&31U;
+        flag->buf[flag->n] &= tail ? ((uint32_t(1)<<tail)-1) : 0U;
+    }
     RandSet& operator=(const RandSet &_set) = delete;
 
     ~RandSet(){

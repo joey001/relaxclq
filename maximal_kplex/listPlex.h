@@ -1,12 +1,18 @@
 #ifndef LISTPLEX_H
 #define LISTPLEX_H
 #if !defined(PARLAY_ELASTIC_PARALLELISM) || PARLAY_ELASTIC_PARALLELISM
-#error "P004 R2 requires fixed native PARLAY_ELASTIC_PARALLELISM=0"
+#error "P005 requires fixed native PARLAY_ELASTIC_PARALLELISM=0"
 #endif
+#if defined(_OPENMP) || defined(OPENMP) || defined(PARLAY_OPENMP) || defined(PARLAY_CILKPLUS) || defined(PARLAY_OPENCILK) || defined(PARLAY_TBB) || defined(PARLAY_SEQUENTIAL)
+#error "P005 requires the native Parlay scheduler"
+#endif
+#include <parlay/parallel.h>
 extern int k,lb,bd;
 extern double time_limit;
 #include <cassert>
 #include <functional>
+#include <atomic>
+#include <memory>
 #include "config.h"
 #include "timer.h"
 #include "MRandSet.h"
@@ -54,6 +60,7 @@ namespace ListPlex{
         const int hopSz, hop2Sz;
         const vector<uint8_t>& commonMtx;
         vector<std::pair<int,int> > vp;
+        std::atomic<int>* forkCredits=nullptr;
 
         KplexListor(Graph &_subg,MaximalityChecker *_plexMaxChecker, Emitor *_emitor,
                     Stack<int> *_plex, VtxSet *_cand1, VtxSet *_cand2, VtxSet *_excl, VtxSet *_exclBK, Stack<int> *_exclStack,
@@ -62,6 +69,30 @@ namespace ListPlex{
         ,plex(_plex),cand1(_cand1),cand2(_cand2),excl(_excl),exclBK(_exclBK),exclStack(_exclStack)
         ,neiInP(_neiInP),neiInG(_neiInG),hopSz(_hopSz),hop2Sz(_hop2Sz),commonMtx(_commonMtx)
         {
+        }
+
+        // A root owns at most b-1 snapshots in total. The immutable graph and
+        // pair matrix are shared; no worker/TLS state is borrowed across par_do.
+        template<class First, class Rest>
+        void forkBranch(First first, Rest rest) {
+            bool granted=false;
+            if (forkCredits && parlay::num_workers()>1) {
+                int left=forkCredits->load(std::memory_order_relaxed);
+                while (left>0 && !(granted=forkCredits->compare_exchange_strong(
+                        left,left-1,std::memory_order_relaxed))) {}
+            }
+            if (!granted) { first(*this); rest(); return; }
+            Stack<int> childPlex(*plex,subg.n),childStack(*exclStack,subg.n);
+            VtxSet childCand1(*cand1,subg.n),childCand2(*cand2,subg.n),childExcl(*excl,subg.n),childBK(*exclBK,subg.n);
+            std::vector<int> childP(neiInP,neiInP+subg.n),childG(neiInG,neiInG+subg.n);
+            MaximalityChecker checker(subg,plexMaxChecker->uni.cap);
+            Emitor output(*emitor); output.count=0;
+            Graph childGraph=subg;
+            KplexListor child(childGraph,&checker,&output,&childPlex,&childCand1,&childCand2,
+                (excl==exclBK ? &childBK : &childExcl),&childBK,&childStack,childP.data(),childG.data(),hopSz,hop2Sz,commonMtx);
+            child.forkCredits=forkCredits;
+            parlay::par_do([&]{first(child);},[&]{rest();});
+            emitor->count+=output.count;
         }
 
         size_t getIdx(const int v1,const int v2){
@@ -333,11 +364,14 @@ namespace ListPlex{
                 return;
             }
             if(k>2 && bound12()) return;
-            //br0;
-            int v2delete=cand2BackToExclInc();
-            kSearch(res);
-            exclToCand2Inc(v2delete);
-            
+            // Partition exactly as serial kSearch: exclude the current back
+            // vertex, versus the ordered include-prefix branches below.
+            forkBranch([&](KplexListor& child) {
+                const int v=child.cand2BackToExclInc();
+                child.kSearch(res);
+                child.exclToCand2Inc(v);
+            },[&] {
+            int v2delete;
             //start from the 1st br.
             int br=1;
             for (; br<res; br++)
@@ -377,6 +411,7 @@ namespace ListPlex{
                 excl->add(exclStack->top());
                 exclStack->pop();
             }
+            });
         }
 
         //Check if plex+cand is a k-plex
@@ -407,21 +442,19 @@ namespace ListPlex{
 
         void branchInCandBase(const int pivot)
         {
-            //In the first branch, select pivot
-            int recCand1,recExcl;
-            cand1ToPlex(pivot)->updateCand1Fake(recCand1,pivot)->updateExcl(recExcl,pivot)->listByCase();
-
-            //Recover
-            cand1->fakeRecoverAdd(recCand1,this);
-            plexToCand1();
-            while(recExcl){
-                excl->add(exclStack->top());
-                exclStack->pop();
-                recExcl--;
-            }
-            //In the second branch, remove pivot
-            cand1ToExcl(pivot)->listByCase();
-            exclToCand1(pivot);
+            // Existing include/exclude partition; each half has a complete,
+            // independent exclusion state and global-maximality checker.
+            forkBranch([&](KplexListor& child) {
+                int recCand1,recExcl;
+                child.cand1ToPlex(pivot)->updateCand1Fake(recCand1,pivot)
+                    ->updateExcl(recExcl,pivot)->listByCase();
+                child.cand1->fakeRecoverAdd(recCand1,&child);
+                child.plexToCand1();
+                while(recExcl--) {child.excl->add(child.exclStack->top());child.exclStack->pop();}
+            },[&] {
+                cand1ToExcl(pivot)->listByCase();
+                exclToCand1(pivot);
+            });
         }
 
         void branchInPlexBase(const int pivot){
@@ -444,11 +477,12 @@ namespace ListPlex{
             }
             assert(sz == tot);
             //There are at most tol+1 branches.
-            //br0;
-            int v2delete = addList[0];
-            cand1ToExcl(v2delete)->listByCase();
-            exclToCand1(v2delete);
-
+            forkBranch([&](KplexListor& child) {
+                const int excluded=addList[0];
+                child.cand1ToExcl(excluded)->listByCase();
+                child.exclToCand1(excluded);
+            },[&] {
+            int v2delete;
             //Proceed br1 in [1,tol-1); there are at least 2 branches
             //add in addList[0,...,br), remove addList[br].
             int v2add;
@@ -509,6 +543,7 @@ namespace ListPlex{
                 exclStack->pop();
                 recExcl--;
             }
+            });
         }
 
         bool bound1() {
@@ -611,7 +646,7 @@ namespace ListPlex{
                 checkAsMaxPlex();   //P+C is a k-plex
                 return;
             }
-            // P004 only parallelizes independent roots; each search is serial.
+            // P005 exposes a bounded strict frontier inside each independent root.
             if (minneiPlex==minnei) branchInPlexBase(pivot);
             else branchInCandBase(pivot);
         }

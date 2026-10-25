@@ -1,4 +1,4 @@
-.DEFAULT_GOAL := parlay-root-streams
+.DEFAULT_GOAL := parlay-dense-frontier
 # avalible targets
 target_x86   =   x86
 target_arm   =   arm
@@ -45,19 +45,19 @@ all:
 clean:
 	 $(RM) $(OUTPUT)
 
-# P004 native Parlay root tasks. Override PARLAY_ROOT for another checkout.
-P004_PROJECT_ROOT ?= $(abspath $(dir $(firstword $(wildcard ../execution-environments.json ../../execution-environments.json))))
-PARLAY_ROOT ?= $(P004_PROJECT_ROOT)/deps/parlaylib
-P004_OUT ?= $(P004_PROJECT_ROOT)/build/p004-r2
-P004_FLAGS ?= -O3 -DNDEBUG -march=native
-P004_SOURCES = maximal_kplex/toBin.cpp maximal_clique/util.cpp maximal_clique/set_operation.cpp maximal_clique/bitpack_maximal_clique.cpp maximum_clique/GraphClique.cpp maximum_kplex/Graph.cpp main.cpp maximal_kplex/listPlex.cpp
-P004_HEADERS = $(wildcard maximal_kplex/*.h)
-.PHONY: parlay-root-streams parlay-root-streams-emit
-parlay-root-streams: $(P004_OUT)/MKP
-parlay-root-streams-emit: $(P004_OUT)/MKP-emit
-$(P004_OUT)/MKP: $(P004_SOURCES) $(P004_HEADERS)
-	mkdir -p $(P004_OUT)
-	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET $(P004_FLAGS) -I$(PARLAY_ROOT)/include $(P004_SOURCES) -o $@
-$(P004_OUT)/MKP-emit: $(P004_SOURCES) $(P004_HEADERS)
-	mkdir -p $(P004_OUT)
-	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET -DLISTPLEX_EMIT_SOLUTIONS $(P004_FLAGS) -I$(PARLAY_ROOT)/include $(P004_SOURCES) -o $@
+# P005 native Parlay root tasks. Override PARLAY_ROOT for another checkout.
+P005_PROJECT_ROOT ?= $(abspath $(dir $(firstword $(wildcard ../execution-environments.json ../../execution-environments.json))))
+PARLAY_ROOT ?= $(P005_PROJECT_ROOT)/deps/parlaylib
+P005_OUT ?= $(P005_PROJECT_ROOT)/build/p005
+P005_FLAGS ?= -O3 -DNDEBUG -march=native
+P005_SOURCES = maximal_kplex/toBin.cpp maximal_clique/util.cpp maximal_clique/set_operation.cpp maximal_clique/bitpack_maximal_clique.cpp maximum_clique/GraphClique.cpp maximum_kplex/Graph.cpp main.cpp maximal_kplex/listPlex.cpp
+P005_HEADERS = $(wildcard maximal_kplex/*.h)
+.PHONY: parlay-dense-frontier parlay-dense-frontier-emit
+parlay-dense-frontier: $(P005_OUT)/MKP
+parlay-dense-frontier-emit: $(P005_OUT)/MKP-emit
+$(P005_OUT)/MKP: $(P005_SOURCES) $(P005_HEADERS)
+	mkdir -p $(P005_OUT)
+	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET $(P005_FLAGS) -I$(PARLAY_ROOT)/include $(P005_SOURCES) -o $@
+$(P005_OUT)/MKP-emit: $(P005_SOURCES) $(P005_HEADERS)
+	mkdir -p $(P005_OUT)
+	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET -DLISTPLEX_EMIT_SOLUTIONS $(P005_FLAGS) -I$(PARLAY_ROOT)/include $(P005_SOURCES) -o $@

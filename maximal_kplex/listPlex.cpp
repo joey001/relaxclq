@@ -458,12 +458,12 @@ namespace ListPlex
             degreeWork+=std::min(d*d,budget-degreeWork);
         }
         const size_t streams=pn ? std::min(cap,size_t(1+degreeWork/uint64_t(pn))) : 0;
-        struct Result { unsigned long long count=0; size_t valid=0,roots=0; };
+        struct Result { unsigned long long count=0; size_t valid=0,roots=0; unsigned long long snapshots=0,snapshotCapacityBytes=0; };
         std::vector<Result> results(streams);
         std::atomic<size_t> next{0};
         parlay::parallel_for(0,streams,[&](size_t stream) {
-            // This callback owns its scratch until completion. It never forks,
-            // yields to nested Parlay work, or indexes scratch by worker_id.
+            // Q callback identities own scratch. Each current root strictly joins
+            // every descendant before this stream reuses any root buffer.
             vector<uint8_t> visited(pn,0),inBlk(pn,0),inLeft(pn,0),commonMtx;
             vector<int> count(pn,0),neibors,neiborsLeft,blk,left,neiInP,neiInG;
             Stack<int> plex,exclStack;
@@ -498,7 +498,13 @@ namespace ListPlex
                 KplexListor<DecomposeMaxChecker,PlexEmitor> listor(
                     subg,&maxchecker,&emitor,&plex,&cand1,&cand2,&excl,&exclBK,&exclStack,
                     neiInP.data(),neiInG.data(),hopSz,hop2Sz,commonMtx);
+                std::atomic<int> forkCredits(blkSz-1);
+                listor.forkCredits=workers>1 ? &forkCredits : nullptr;
                 listor.cand1ToPlex(0)->kSearch(k-1);
+                const unsigned long long snapshots=blkSz-1-forkCredits.load(std::memory_order_relaxed);
+                result.snapshots+=snapshots;
+                result.snapshotCapacityBytes+=snapshots*(48ULL*blkSz+8ULL*leftSz+
+                    16ULL*(blkSz/32+1)+4ULL*(leftSz/32+1));
                 result.count+=emitor.count;
                 for (int u:blk) inBlk[u]=false;
                 for (int u:left) inLeft[u]=false;
@@ -509,8 +515,10 @@ namespace ListPlex
         },1);
         unsigned long long cntMaxPlex=0;
         size_t validblk=0,rootCount=0;
+        unsigned long long snapshots=0,snapshotCapacityBytes=0;
         for (const Result& result:results) {
             cntMaxPlex+=result.count;validblk+=result.valid;rootCount+=result.roots;
+            snapshots+=result.snapshots;snapshotCapacityBytes+=result.snapshotCapacityBytes;
         }
         const auto done=Clock::now();
         printf("Preprocessing time: %.6f s\n",std::chrono::duration<double>(rootsStart-searchStart).count());
@@ -521,6 +529,8 @@ namespace ListPlex
         printf("Number of %d-plex: %llu\n",k,cntMaxPlex);
         printf("Running time: %.3f s\n",std::chrono::duration<double>(done-searchStart).count());
         printf("Task Cnt: %zu\n",rootCount);
+        printf("Fork snapshots: %llu\n",snapshots);
+        printf("Snapshot base capacity bytes (cumulative): %llu\n",snapshotCapacityBytes);
     }
 int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_flag,double timeLimit){
     std::string input(file_path);
