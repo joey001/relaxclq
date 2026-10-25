@@ -4,7 +4,7 @@
   "repository": "https://github.com/joey001/parlaylib.git",
   "revision": "51017699dcc421f80479cdb238d3092233ad0d26",
   "revision_verified_on": "2026-10-25",
-  "integration_status": "implemented_and_correctness_validated_on_technique/p001-parlay-roots_not_merged",
+  "integration_status": "P001 integrated and correctness-validated on technique branch; sparse-state design rejected experimentally and not merged",
   "minimum_cpp_standard": 17,
   "worker_environment": "PARLAY_NUM_THREADS",
   "worker_observation": "parlay::num_workers()",

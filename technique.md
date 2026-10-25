@@ -8,7 +8,7 @@ Future candidate algorithms use **the native ParlayLib scheduler** from [joey001
 
 [GBBS](https://github.com/ParAlg/gbbs) is a useful source of Parlay graph-algorithm patterns; it is neither a mandatory dependency nor the boundary of permitted ideas. Its `gbbs/bridge.h` exposes Parlay loops and fork-join operations. GBBS currently pins a different Parlay revision: inspect compatibility instead of silently replacing the selected fork. Preserve source attribution and applicable licenses for adapted code.
 
-**P001 is now being implemented and independently reviewed on Ubuntu; no candidate has been measured, accepted, or rejected yet.** Existing hardening and OpenMP measurements are historical evidence, not experiments on the proposals below. The three branches below are reserved for independent trials; an empty branch is not an attempted implementation. No graphs are downloaded and no experiments are launched by maintaining this ledger.
+**P001 has completed correctness validation and396 timed runs; its current sparse-state route is rejected for repeatable regressions. P002/P003 remain unimplemented.** Existing hardening and OpenMP measurements are historical evidence, not experiments on the proposals below. P001 has a retained implemented branch; P002/P003 are reserved and an empty branch is not an attempted implementation. No graphs are downloaded and no experiments are launched by maintaining this ledger.
 
 ## Authorized algorithm adaptations
 
@@ -43,23 +43,87 @@ For a fixed normalized input and `(k,q)`, let `R` be the number of independent r
 
 | ID | Technique | Dedicated branch | Status | Theory gate | Experiment gate |
 | --- | --- | --- | --- | --- | --- |
-| P001 | Native Parlay root parallelism | `technique/p001-parlay-roots` | in_progress; implementation and correctness first | under review | not run |
+| P001 | Native Parlay root parallelism | `technique/p001-parlay-roots` | rejected: sparse-state route | conditional average-hash only | failed: repeatable regressions |
 | P002 | Bounded fork-join splitting of heavy subtrees | `technique/p002-bounded-fork-join` | planned; branch reserved | not validated | not run |
 | P003 | Shared immutable blocks with compact task state | `technique/p003-shared-task-state` | planned; branch reserved | not validated | not run |
 
 ### P001 - Native Parlay root parallelism
 
-**Hypothesis.** Run the existing independent root computations with `parlay::parallel_for`, preserving the serial search within each root. Use native default granularity first, task-safe scratch ownership and local counts followed by reduction. This proposal deliberately keeps the existing search as a minimum runtime-port control, not a claim of a new search algorithm; that design choice does not prohibit algorithm adaptations in other proposals.
+**Decision (2026-10-25): REJECTED for the current root-private sparse-state route.** Correctness passes the declared gates, but repeatable serial and parallel regressions violate small-and-sweet generalization. This rejects this implementation path, not Parlay or root parallelism as a whole. No parallel implementation is merged into the mainline. P002/P003 remain unimplemented; neither may call this an accepted control.
 
-**Work.** A proposed decomposition gives `W = W_ref + O(R) + C_init`. Since the reference must already visit its roots, `O(R)` is chargeable. Acceptance still requires proving `C_init = O(W_ref)`: eagerly zeroing graph-sized scratch for every worker can introduce `O(P*n)` work and is not automatically acceptable. All affected preprocessing must be included; unchanged serial phases remain serial.
+**Identity.** Branch `technique/p001-parlay-roots`; base `f85c6e833e7f67330a684a0fe894620e874eb988`; port `cc107ae2e08dde256260046be76588e96e1ece06`; isolated helper repair `0c6a5eacedf10b7ed1185fe28e93e888199ff433`; tested source/harness HEAD `2969a9ee8c2a597c735a07147012b6df9587a1d2`. Native Parlay fork revision `51017699dcc421f80479cdb238d3092233ad0d26`, codeload archive SHA `4f2fc759c1ca474db2f45585ee2300997a128d48fba79bf47aaa579aa8858ee8`; source manifest in `../deps/parlaylib-source-manifest.json`. GCC11.4, candidate C++17/pthread/O3/DNDEBUG/march=native/msse4.2/TARGET, no OpenMP backend; observed native workers equal every request. No new algorithm tuning knobs; grain one is structural for irregular roots.
 
-**Span.** Under a binary fork-join parallel loop, `S = O(S_pre + log(R+1) + max_i(W_i + A_i))`, where `A_i` charges initialization/counter overhead on the strand that runs root `i`. If those costs are charged into root work, this reduces to the familiar root-granularity bound. One heavy root remains a serial bottleneck. This is a model-level bound to verify against the actual loop and ownership design.
+**Controls and independent safety repair.** The original frozen archive `ae76855e71a296f233fab5322bcf9b6ec07fca07b35e619b895cf0e386f7e104` remains immutable. K4100 UBSan found inherited signed overflow and bool/int aliasing in packed flag counting; replace it with a direct bool sum, without changing enumeration. Both timed programs use that repair. Safe reference source archive `c5c06a6f3f69c23e268adb6d7c956439fd5d6f40075b6df22eddf5252a1b43b2` overlays only sequence.h on the frozen source and is separately pinned by `tests/baselines/listplex-pack-safe-2026-10-25.json`. Its single-thread binary is the reference; the same binary at P>1 is labelled legacy OpenMP control. It is not FP/PlexEnum and no external author's implementation was changed or remeasured here. The validated helper-only repair was independently adopted on mainline as `20bf08c`; the Parlay port remains unmerged.
 
-**Simplicity/parameters.** No new algorithm knobs. Use the pinned native scheduler and worker count `P`; avoid copying the global graph or creating a scheduler per root. Scratch cannot be reused while a suspended task still owns it.
+**Actual decomposition and correctness.** The candidate completes core peeling/rebuild and the degeneracy order before a grain-one `parlay::parallel_for` over roots. Every callback owns its sparse graph-index maps, local dense block/matrix, search/exclusion/recovery state, checker and emitter; graph/order arrays are immutable. Each root writes one independent 64-bit result, then the caller sums after the join. There is no mutable TLS and no callback spawns/yields inside serial search. The minimum degeneracy vertex partitions results completely and without overlap. For q>=2k-1, nonadjacent vertices of a qualifying k-plex have at least q-2k+2>=1 common neighbors, supporting the inherited two-hop decomposition; local exclusions and complete left candidates retain global maximality checks. CLI processes are independent; simultaneous library invocations are not supported because k/q/time parameters remain global. Diagnostic ID emission uses a mutex and is excluded from timing.
 
-**Experimental analysis.** Not run. First pass `dev_smoke`, remote oracle/race/memory checks and `remote_sanity`. Compare reference one-thread, candidate native P=1 and candidate P=2/4/8/16/20; use the archived same-P legacy control to expose any runtime-port regression. Freeze the development/held-out split from the manifest. Report per-case timing and RSS, root duration distribution and initialization/copy work. No measured speedup or generalization claim is available.
+**Work and assumptions.** For normalized binary input let n,m be graph sizes, R<=n retained roots, A_i the graph-index scratch accesses, b_i/l_i the right/left block sizes, E_i=sum_{v in B_i}deg(v)+b_i(b_i+l_i) the adjacency/materialization budget, C_i common-neighbor work, and H_i recursive search/maximality work with complete left candidates. In a RAM model with average/amortized O(1) hash operations and linear allocator cost:
 
-**Closure.** Accept only if the complete work accounting and broad non-regression tests pass. Reject a root-port design that adds unchargeable worker-scaled work or repeats clear serial/parallel regressions. Base/implementation commits and run paths: pending implementation.
+`W = O(n+m+R + sum_i(A_i+E_i+C_i+H_i))`.
+
+Each map operation corresponds to a scratch access; insertion, rehashing and destruction are charged to inserted keys, with no reserve(n). There is no eager P*n or R*n zeroing. The fresh b_i^2 matrix zeroing is charged: both programs unconditionally materialize every matrix cell in buildSubgraph before deciding proper. Local sets and checker initialization are covered by block work. The isolated Boolean-sum repair remains Theta(n) work/span and O(1) extra space.
+
+This is a **conditional average-hash bound**, not an unconditional or randomized-expected work-efficiency proof: std::unordered_map<int,...> uses deterministic hashing and collision-heavy keys can increase scratch work. Also, the reference leaves marks from early-skipped roots in worker-local visited, incidentally removing safe left candidates later. Private scratch clears those residual marks. Correctness is preserved, but some left/maximality work can grow: compare common complete-left-candidate bounds, never claim per-instance W_candidate=O(actual W_reference) or identical node counts. The work gate is therefore conditional, not an unconditional pass.
+
+**Span.** For binary input the complete serial preprocessing has O(n+m) work/span. Include serial result initialization/reduction, grain-one binary fork/join and complete root lifetimes:
+
+`S = O(n+m+R+log(R+1)+max_i W_i) = O(n+m+max_i W_i)`.
+
+One large root remains indivisible and preprocessing remains serial. Text loading adds its separately charged sorting/remapping. Under the fully strict randomized work-stealing model with constant-cost primitives, nonblocking count-only callbacks and sufficient processors/memory, expected scheduling time can be bounded by O(W/P+S). This is conditional modeling, not a Parlay-on-VM guarantee.
+
+**Space.** For live roots I, let a_i be distinct scratch keys and e_i_left materialized left adjacency. Resident/auxiliary space is
+
+`O(n+m+R+P*log(R+1)+sum_{i in I}(a_i+b_i^2+e_i_left+l_i+stack_i))`.
+
+At most P callbacks are live because callbacks do not fork or yield. There are no copies of the global graph or a parent matrix per recursive child. Hash allocation constants and RSS still matter; avoiding P*n initialization does not guarantee lower practical memory.
+
+**Correctness first.** After the helper repair: smoke19; 2,234 independent exhaustive/random cases, checking candidate P1/P4 and safe control against complete oracle sets, counts and duplicate-free emission; boundaries/CLI38; ASan+UBSan+leaks30 including K4100 and flag length/alignment/pattern regression; 240 repeated exact-set cases at P2/8/16/20; real-input count sanity20. The final 9,283 logical checks comprise **7,049 new executions and 2,234 explicitly reused/reverified immutable-reference traces**. No failed gate was counted as a pass; initial pre-repair runs and the UBSan failure are retained. TSan builds but exits66 before initialization with unexpected memory mapping: **unsupported environment, not a race-check pass**. See `../runs/p001-validation-summary.json` and branch `tests/p001_validation.md`.
+
+**Measured protocol.** All development, compilation and execution were local to Ubuntu joey-virtual-machine at `/home/joey/k-plex-rethinki-ubuntu`; no self-SSH dispatch. One benchmark process, affinity0-19, <=20 workers, 48GiB child address-space cap, whole-batch160GiB and <=70% available memory. No data normalization/builds overlapped timings. Three seeded interleaved repetitions for six development/intermediate cases at P1/2/4/8/16/20: **216 successful measurements**. Additional five interleaved repetitions for jazz(4,12), Enron(3,20), Wiki(3,20): **180 successful measurements**. All396 counts match, every198 native worker observation matches; no timeout/OOM/crash/censored result. Independent agent audits recomputed every summary cell from raw logs and verified source/binary/input/driver/gate hashes. Runtime is a VMware guest with24 visible vCPUs, not24 verified exclusive physical cores.
+
+**Initial medians (3 repetitions, seconds).** C/L is candidate time divided by same-P safe legacy time; >1 means slower. S20 uses candidate P1/candidate P20.
+
+| Case | Safe legacy P1 s | Parlay P1 s | Safe legacy P20 s | Parlay P20 s | Parlay S20 | C20/L20 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| jazz-k3-q10 | 0.3917 | 0.4081 | 0.0451 | 0.0397 | 10.29 | 0.880 |
+| ca-GrQc-k3-q10 | 0.0231 | 0.0303 | 0.0204 | 0.0224 | 1.35 | 1.099 |
+| jazz-k4-q12 | 4.6524 | 4.6110 | 0.3123 | 0.3317 | 13.90 | 1.062 |
+| email-Enron-k3-q20 | 1.8226 | 2.2636 | 0.1885 | 0.2520 | 8.98 | 1.337 |
+| wiki-vote-k3-q20 | 4.7578 | 5.3720 | 0.2932 | 0.3668 | 14.65 | 1.251 |
+| com-dblp-k3-q20 | 3.0191 | 3.0801 | 0.3065 | 0.2920 | 10.55 | 0.953 |
+
+**Native candidate scalability (initial median speedups, same native executable).**
+
+| Case | P1 | P2 | P4 | P8 | P16 | P20 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| jazz-k3-q10 | 1.00 | 1.36 | 3.43 | 5.84 | 7.83 | 10.29 |
+| ca-GrQc-k3-q10 | 1.00 | 1.21 | 1.45 | 1.69 | 1.64 | 1.35 |
+| jazz-k4-q12 | 1.00 | 1.33 | 3.79 | 7.27 | 12.24 | 13.90 |
+| email-Enron-k3-q20 | 1.00 | 1.88 | 3.45 | 6.38 | 9.32 | 8.98 |
+| wiki-vote-k3-q20 | 1.00 | 1.95 | 3.86 | 7.49 | 12.56 | 14.65 |
+| com-dblp-k3-q20 | 1.00 | 1.84 | 3.55 | 5.97 | 9.94 | 10.55 |
+
+**Confirmation (5 additional repetitions, seconds; median and full observed min/max).** These are separate from the initial3, not silently pooled. The complete six-worker grids remain in raw summaries.
+
+| Case | P | Legacy median [min,max] s | Parlay median [min,max] s | C/L |
+| --- | ---: | --- | --- | ---: |
+| jazz-k4-q12 | 1 | 4.6613 [4.6551,4.6864] | 4.5960 [4.5827,4.6030] | 0.986 |
+| jazz-k4-q12 | 2 | 2.3613 [2.3596,2.3794] | 3.4799 [3.4670,3.5146] | 1.474 |
+| jazz-k4-q12 | 20 | 0.3130 [0.3096,0.3326] | 0.3625 [0.2915,0.3917] | 1.158 |
+| email-Enron-k3-q20 | 1 | 1.8184 [1.8145,1.8290] | 2.2704 [2.2680,2.2843] | 1.249 |
+| email-Enron-k3-q20 | 2 | 0.9362 [0.9255,0.9408] | 1.2063 [1.1971,1.2111] | 1.289 |
+| email-Enron-k3-q20 | 20 | 0.1909 [0.1789,0.2143] | 0.2097 [0.1999,0.2507] | 1.099 |
+| wiki-vote-k3-q20 | 1 | 4.7882 [4.7534,4.8112] | 5.3801 [5.3628,5.4453] | 1.124 |
+| wiki-vote-k3-q20 | 2 | 2.4074 [2.3948,2.4806] | 2.7610 [2.7550,2.8264] | 1.147 |
+| wiki-vote-k3-q20 | 20 | 0.2954 [0.2880,0.4481] | 0.3704 [0.3163,0.5319] | 1.254 |
+
+The confirmed Enron P1 median is24.9% slower, Wiki P1 is12.4% slower, and jazz(4,12) P2 is47.4% slower. For these cells every candidate run exceeds every reference run; paired candidate/reference ratios are respectively[1.2477,1.2506], [1.1213,1.1318] and[1.4641,1.4882]. These are clear repeated regressions across serial and parallel execution, not an aggregate-mean judgment. High-worker points are noisier: Enron P20 changes from1.337 times legacy initially to1.099 on confirmation, and Wiki P20 paired ratios span[1.0444,1.8472]. Do not claim a stable34% Enron P20 slowdown or formal statistical significance from these repetitions. Some small cases improve at some P, and candidate self speedup can exceed10x, but that does not cancel regression against the same-worker control elsewhere.
+
+**Memory and phase limits.** Initial P20 median peak RSS is15.56MiB candidate vs9.75MiB legacy on Enron,13.69vs9.00MiB on Wiki and31.92vs28.83MiB on DBLP. These are observed RSS, not full live-task/allocator accounting. Candidate Preprocessing time covers allocations, serial peeling/rebuild and ordering, excluding loading; Root search time includes scheduler startup, Result initialization, roots and sequential reduction, not just enumeration. Running time combines those phases; primary end-to-end wall also includes loading and process/runtime teardown. Legacy exposes fewer phase fields, so do not invent matched core/subgraph/search speedups. No search-node/copy/allocation counters were collected; measured differences belong to the whole port/state-layout/preprocessing change and cannot be attributed solely to hashing or scheduler.
+
+**Scope and closure.** All five predeclared core inputs are now prepared, including new SNAP Epinions/Pokec/Skitter binaries with provenance, exact n/m and SHA. Core/held-out/large performance runs were **not run**, following the predeclared early-rejection rule after confirmed intermediate-case regressions. They are not passes, and no hard-graph generalization claim is made. Theory is conditional average-hash; experiment gate fails. Close this route as rejected, retain branch/code/logs, and do not add graph/machine dispatch knobs to mask regressions. Different task-state representations or decomposition ideas need their own explicitly recorded trial/branch.
+
+**Evidence/reproduction.** See `evaluation/2026-10-25-p001/REPORT.zh-CN.md`, `../runs/p001-20261025/plan.json`, `confirmation-plan.json`, `perf-a/{metadata,measurements,summary}.json`, `perf-confirm/{metadata,measurements,summary}.json`, the correctness summary, all raw stdout/stderr/time files, and `../datasets/p001-core-20261025/manifest.json`. On Ubuntu the branch builds with `make -C ../worktrees/p001 parlay-roots parlay-roots-emit` from project root only when paths are adjusted appropriately: the unambiguous command is `make -C /home/joey/k-plex-rethinki-ubuntu/worktrees/p001 parlay-roots parlay-roots-emit`. The default performance-script invocation only prints a plan; `--run` additionally checks correctness admission and exact binaries.
 
 ### P002 - Bounded fork-join splitting of heavy subtrees
 
@@ -109,7 +173,7 @@ See [development policy](docs/parallel-development.md), [runtime contract](tests
 The primary project is `/home/joey/k-plex-rethinki-ubuntu`, and its canonical algorithm repository is `relaxclq/`. When developing directly on this Ubuntu host, development and testing are co-located: build and execute all tiers locally on that server, using its local tmux for long runs. Do not SSH/SCP the work back to the same host. The Windows copy uses SSH only when the selected operation targets the separate Ubuntu host. Names such as `remote_sanity` or legacy `where=remote` identify the test host, not a mandatory network hop. Resolve the profile using `../tools/project-context.py` and `../execution-environments.json`; the 20-worker and memory caps apply regardless of transport.
 
 
-## P001 trial 2026-10-25: predeclared execution plan
+## Archived P001 pre-execution protocol (2026-10-25)
 
 - **Identity:** native Parlay root parallelism, branch `technique/p001-parlay-roots`, mainline/base `f85c6e833e7f67330a684a0fe894620e874eb988`, pinned runtime `51017699dcc421f80479cdb238d3092233ad0d26`. Solver edits and execution are native to Ubuntu. Implementation, independent oracle validation and work/ownership review are assigned to separate collaborating agents; benchmark admission and this mainline ledger are coordinated by the primary agent.
 - **Work review:** the original worker-local dense global-vertex arrays would introduce an uncharged P*n initialization term. A minimal port must remove that term or fail the theory gate. Expected amortized sparse lookup is an allowed candidate design, with its expected assumptions and practical overhead measured explicitly. No success is assumed.
@@ -119,7 +183,7 @@ The primary project is `/home/joey/k-plex-rethinki-ubuntu`, and its canonical al
 - **Budget:** one timed benchmark process, all measurements on the same CPU affinity 0-19, <=20 total workers, 48 GiB per timed child, whole batch <=160 GiB and <=70% currently available memory. Stage A: 60 seconds per invocation, 1,800 seconds batch; core: 1,800 seconds per invocation, 14,400 seconds pilot batch and 43,200 seconds full batch. No data preparation or compilation overlaps timings. At least three repetitions and additional paired checks for apparent regressions; keep censored/incomplete results.
 - **Evidence:** Ubuntu `runs/p001-20261025/plan.json`; implementation commit, proof, exact result files and final independent gate outcomes pending. This plan is not an experimental result.
 
-### P001 correctness-driven control amendment (before timing)
+### Archived correctness-driven control amendment (before timing)
 
 The 19-call smoke, 6,702 exact-set oracle/reference/candidate checks and 38 boundary/CLI checks initially passed, but the stronger ASan+UBSan gate found inherited signed overflow in `sequence::sumFlagsSerial` on K4100. Its packed `bool*`-to-`int*` reinterpretation also violates strict aliasing. Performance admission was denied. An isolated candidate engineering repair, commit `0c6a5eacedf10b7ed1185fe28e93e888199ff433`, replaces that branch with a direct Boolean sum: still Theta(n) work/span and O(1) auxiliary space, without changing enumeration logic.
 
