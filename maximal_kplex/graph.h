@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <memory>
 #include "utils.h"
 #include "config.h"
 
@@ -27,14 +28,23 @@ struct graph
   const intT n;
   intT m;   
   intT *allocatedInplace;
+  // graph copies used by the checker/search are shared views of these buffers.
+  std::shared_ptr<vertex<intT>> storage;
+  static std::shared_ptr<vertex<intT>> own(vertex<intT>* vertices, intT count, intT* packed) {
+    return std::shared_ptr<vertex<intT>>(vertices, [count, packed](vertex<intT>* p) {
+      if (packed) free(packed);
+      else for (intT i=0; i<count; ++i) p[i].del();
+      free(p);
+    });
+  }
 
-  graph():n(0),m(0),V(nullptr),allocatedInplace(nullptr){};
+  graph():V(nullptr),proper(false),n(0),m(0),allocatedInplace(nullptr){};
   graph(vertex<intT> *VV, intT nn, uintT mm)
-      : V(VV), n(nn), m(mm), allocatedInplace(NULL) {}
+      : V(VV), proper(false), n(nn), m(mm), allocatedInplace(NULL), storage(own(VV,nn,nullptr)) {}
   graph(vertex<intT> *VV, intT nn, uintT mm, intT *ai)
-      : V(VV), n(nn), m(mm), allocatedInplace(ai) {}
+      : V(VV), proper(false), n(nn), m(mm), allocatedInplace(ai), storage(own(VV,nn,ai)) {}
   graph(vertex<intT> *VV, intT nn, uintT mm, intT *ai, double _proper)
-      : V(VV), n(nn), m(mm), allocatedInplace(ai), proper(_proper){}
+      : V(VV), proper(_proper), n(nn), m(mm), allocatedInplace(ai), storage(own(VV,nn,ai)){}
   graph copy()
   {
     vertex<intT> *VN = newA(vertex<intT>, n);
@@ -55,17 +65,11 @@ struct graph
   }
   void del()
   {
-    if(!isDeleted){
-    if (allocatedInplace == nullptr)
-      for (intT i = 0; i < n; i++)
-        V[i].del();
-    else
-      free(allocatedInplace);
-    if(V!=nullptr)
-    free(V);
-    isDeleted=true;
-    }
+    storage.reset();
+    V = nullptr;
+    allocatedInplace = nullptr;
   }
+
   bool isAdj(intT v1, intT v2) const
   {
       if(V[v1].degree>V[v2].degree)

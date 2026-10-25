@@ -150,3 +150,9 @@ The common format of options are as follows.
 ```sh
 $ ./MKP -f {file_path} -m "maximal" -b -k {k-value} -t {time_limit} -l {lower_bound}
 ```
+
+## Enumeration storage and parameter validation
+
+Maximal k-plex storage grows with actual graph and block sizes. Graph views share buffer ownership. The default minimum size is `2*k-1`; an explicitly smaller `-l` is rejected with exit status 2. `-k` must be positive, `-l` nonnegative, and integer parameters must not exceed `INT_MAX/4`. `-t` must be finite and within `[0,86400]`. Malformed values are rejected. Enumeration counts use an unsigned 64-bit counter. Search, branching and pruning rules remain unchanged.
+
+Long tests and benchmarks follow the parent project `AGENTS.md` and `config.md` and run on the configured Ubuntu host.

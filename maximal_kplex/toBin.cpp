@@ -223,6 +223,7 @@ int readRawDIM10Text(const char* filepath) {
 	pstart[n] = j;	
 	assert(j == m);
 	printf("n:%d m:%d\n",n,m/2);
+	delete[] buf;
 	return 0;
 }
 
@@ -238,6 +239,7 @@ int writeBinaryGraph_ToBin(const char* filepath) {
 	fwrite(degree, sizeof(ui), n, f);
 	fwrite(edges, sizeof(ui), m, f);
 	fclose(f);
+	delete[] degree;
 	return 0;
 }
 
@@ -290,31 +292,17 @@ void promot() {
 	return 0;
 }*/
 int main_toBin(char* filePath) {
-	//Identify format
-	int pos = fileSuffixPos(filePath);
-	if (strcmp(filePath + pos, "graph") == 0) {//dimacs 10
-		readRawDIM10Text(filePath);
-	}
-	else if (strcmp(filePath + pos, "txt") == 0) { //snap
-		readRawSNAPText(filePath);
-	}
-	else if (strcmp(filePath + pos, "clq") == 0) { //DIMACS2, clq file
-		readDIMACS2Text(filePath);
-	}
-	else {
-		printf("Graph file not support\n");
-		exit(2);
-	}
-	//Check ouput name
-	char binFilePath[FILELEN] = "\0";
-	if (strlen(binFilePath) == 0) {
-		strncpy(binFilePath, filePath, FILELEN);
-		binFilePath[pos++] = 'b';
-		binFilePath[pos++] = 'i';
-		binFilePath[pos++] = 'n';
-		binFilePath[pos++] = '\0';
-	}
-	//Write
-	writeBinaryGraph_ToBin(binFilePath);
-	return 0;
+    const std::string input(filePath);
+    const size_t dot=input.find_last_of('.');
+    if(dot==std::string::npos){fprintf(stderr,"Input file extension is missing\n");return 2;}
+    const std::string suffix=input.substr(dot+1);
+    if(suffix=="graph")readRawDIM10Text(filePath);
+    else if(suffix=="txt")readRawSNAPText(filePath);
+    else if(suffix=="clq")readDIMACS2Text(filePath);
+    else {fprintf(stderr,"Graph file not supported\n");return 2;}
+    const std::string output=input.substr(0,dot+1)+"bin";
+    const int result=writeBinaryGraph_ToBin(output.c_str());
+    delete[] pstart; pstart=nullptr;
+    delete[] edges; edges=nullptr;
+    return result;
 }

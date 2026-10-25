@@ -10,7 +10,7 @@
 template <typename T=int> 
 class RandSet{    
 public:
-    using TIndex = uint16_t;
+    using TIndex = int;
     int sz;
     int cap;
     T *members;
@@ -20,7 +20,7 @@ public:
 public:
 
     //default constructor        
-    RandSet():sz(0),cap(0),members(nullptr),flag(nullptr),pos(nullptr){}
+    RandSet():sz(0),cap(0),members(nullptr),pos(nullptr),flag(new MBitSet32(0)){}
 
     RandSet(int _maxvalue):cap(_maxvalue),sz(0){       
         members = new T[_maxvalue];
@@ -51,9 +51,17 @@ public:
     }
 
     void resize(const int _cap){
-        cap=_cap;
-        flag->cap=_cap;
-        flag->n=_cap>>5;
+        if (_cap <= cap) return;
+        T *grownMembers = new T[_cap];
+        TIndex *grownPos = new TIndex[_cap];
+        // Preserve the removed suffix: backtracking restores it without reordering.
+        if (cap) {
+            memcpy(grownMembers, members, sizeof(T) * cap);
+            memcpy(grownPos, pos, sizeof(TIndex) * cap);
+        }
+        flag->reserve(_cap);
+        delete[] members; delete[] pos;
+        members = grownMembers; pos = grownPos; cap = _cap;
     }
 
     bool contains(const T& v){

@@ -7,7 +7,7 @@ namespace ListPlex
         int sz;
         int cap;
 
-        Stack() : sz(0), members(nullptr) {}
+        Stack() : members(nullptr), sz(0), cap(0) {}
         //Stack(T *_list, int _sz) : sz(_sz), members(list) {}
         //emty stack
         Stack(int _cap) : sz(0), cap(_cap)
@@ -51,7 +51,12 @@ namespace ListPlex
         }
 
         inline void resize(const int _cap){
-            cap=_cap;
+            if (_cap <= cap) return;
+            T *grown = new T[_cap];
+            if (sz) memcpy(grown, members, sizeof(T) * sz);
+            delete[] members;
+            members = grown;
+            cap = _cap;
         }
     };
 }

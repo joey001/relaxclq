@@ -1,7 +1,7 @@
 #ifndef LISTPLEX_H
 #define LISTPLEX_H
 extern int k,lb,bd;
-extern thread_local long cntT;
+extern thread_local unsigned long long cntT;
 #include <atomic>
 //extern std::atomic<long> cntT;
 //extern long cntT;
@@ -10,9 +10,8 @@ extern int taskCnt,overCnt;
 extern double time_limit;
 extern bool timeOver;
 extern int validblk;
-extern long cntMaxPlex;
+extern unsigned long long cntMaxPlex;
 extern double costTime;
-extern bool isDeleted;
 #include <cassert>
 #include <functional>
 #include "config.h"
@@ -90,8 +89,8 @@ namespace ListPlex{
             delete[] neiInG;
         }
 
-        int getIdx(const int v1,const int v2){
-            return v1*subg.n+v2;
+        size_t getIdx(const int v1,const int v2){
+            return size_t(v1)*subg.n+v2;
         }
 
         bool isAdjMtx(const int v1,const int v2)
@@ -364,7 +363,7 @@ namespace ListPlex{
                 }
             }
             int recExcl=0,recExclTmp;
-            int recCand1[K_LIMIT],recCand2[K_LIMIT];
+            std::vector<int> recCand1(size_t(res)+1), recCand2(size_t(res)+1);
             if(cand2->sz==0){
                 listByCase();
                 return;
@@ -486,8 +485,8 @@ namespace ListPlex{
         void branchInPlexBase(const int pivot){
             int tot = k + neiInP[pivot] - plex->sz;
             assert(tot > 0);
-            int addList[K_LIMIT];
-            int recCand1[K_LIMIT]; 
+            std::vector<int> addList(tot);
+            std::vector<int> recCand1(tot);
             int recExcl=0,recExclTmp;
             int sz = 0;
             //Filter cand1 and find non-adjacent nodes
@@ -573,7 +572,7 @@ namespace ListPlex{
         void branchInPlex(const int pivot){
             const int tot = k + neiInP[pivot] - plex->sz;
             assert(tot > 0);
-            int addList[K_LIMIT];
+            std::vector<int> addList(tot);
             int tmp = 0;
             //Filter cand1 and find non-adjacent nodes
             for (VtxSet::TIndex i = 0; i < cand1->sz; i++)

@@ -1,5 +1,5 @@
 int k,lb,bd;
-thread_local long cntT=0;
+thread_local unsigned long long cntT=0;
 #include <atomic>
 //std::atomic<long> cntT(0);
 int workers,workers1t2;
@@ -7,9 +7,8 @@ int taskCnt = 0,overCnt=0;
 double time_limit=-1;
 bool timeOver=false;
 int validblk=0;
-long cntMaxPlex=0;
+unsigned long long cntMaxPlex=0;
 double costTime=0;
-bool isDeleted=false;
 #include "timer.h"
 timer watch;
 //statistics for schedule
@@ -38,8 +37,9 @@ namespace ListPlex
     {
         const graph<int> subg; //check in the subgraph(contains all possible nodes and edges) for cache-efficiency
 
-        DecomposeMaxChecker(const graph<int> &_subg)
-            : subg(_subg){}
+        const int leftCapacity;
+        DecomposeMaxChecker(const graph<int> &_subg, int leftSize)
+            : subg(_subg), leftCapacity(leftSize){}
 
         //Count the number of adjacent vertices of u in the plex
         bool canGlobalAdd(int u, int szplex,int* plex){
@@ -60,11 +60,11 @@ namespace ListPlex
         bool isMaximal(int *list, int szplex, int* neiInP)
         {   
             // saturated vertices;
-            assert(szplex < PSIZE_LIMIT);
-            int sat[PSIZE_LIMIT]; //saturated vertices in plex
+            std::vector<int> sat(szplex); //saturated vertices in plex
             int nsat = 0;
             bool max = true;
-            thread_local RandSet<int> uni(CAP_LIMIT2);
+            thread_local RandSet<int> uni;
+            uni.resize(leftCapacity);
             for (int i = 0; i < szplex; i++){
                 const int v = list[i];
                 if (neiInP[v] + k == szplex){
@@ -169,7 +169,7 @@ namespace ListPlex
                         }
                     }
                 }
-                if (cnt >= thres) filtered.push_back(u);
+                if (thres <= 0 || cnt >= size_t(thres)) filtered.push_back(u);
                 else
                     visited[u] = 0;
             }
@@ -262,7 +262,7 @@ namespace ListPlex
             int cnt = 0;  
             for (int j = 0; j < blkSz; j++){
                 const int nei = blk[j];
-                commonMtx[i*blkSz+j]=isNei[nei];
+                commonMtx[size_t(i)*blkSz+j]=isNei[nei];
                 if (isNei[nei]){
                     vertices[i].Neighbors[cnt++] = j;
                     isNei[nei]=false;
@@ -359,17 +359,17 @@ namespace ListPlex
                     subg.V[j].Neighbors,
                     subg.V[j].degreeHop
                 );
-                if(commonMtx[i*blkSz+j]){
-                    if(common>thresCC1)commonMtx[i*blkSz+j]=LINK2MORE;
-                    else if(common==thresCC1)commonMtx[i*blkSz+j]=LINK2EQUAL;
-                    else commonMtx[i*blkSz+j]=LINK2LESS;
+                if(commonMtx[size_t(i)*blkSz+j]){
+                    if(common>thresCC1)commonMtx[size_t(i)*blkSz+j]=LINK2MORE;
+                    else if(common==thresCC1)commonMtx[size_t(i)*blkSz+j]=LINK2EQUAL;
+                    else commonMtx[size_t(i)*blkSz+j]=LINK2LESS;
                 }
                 else{
-                    if(common>thresCC2)commonMtx[i*blkSz+j]=UNLINK2MORE;
-                    else if(common==thresCC2)commonMtx[i*blkSz+j]=UNLINK2EQUAL;
-                    else commonMtx[i*blkSz+j]=UNLINK2LESS;
+                    if(common>thresCC2)commonMtx[size_t(i)*blkSz+j]=UNLINK2MORE;
+                    else if(common==thresCC2)commonMtx[size_t(i)*blkSz+j]=UNLINK2EQUAL;
+                    else commonMtx[size_t(i)*blkSz+j]=UNLINK2LESS;
                 }
-                commonMtx[j*blkSz+i]=commonMtx[i*blkSz+j];
+                commonMtx[size_t(j)*blkSz+i]=commonMtx[size_t(i)*blkSz+j];
             }
         }
         for(int i=hopSz;i<blkSz;++i){
@@ -380,17 +380,17 @@ namespace ListPlex
                     subg.V[j].Neighbors,
                     subg.V[j].degreeHop
                 );
-                if(commonMtx[i*blkSz+j]){
-                    if(common>thresPC1)commonMtx[i*blkSz+j]=LINK2MORE;
-                    else if(common==thresPC1)commonMtx[i*blkSz+j]=LINK2EQUAL;
-                    else commonMtx[i*blkSz+j]=LINK2LESS;
+                if(commonMtx[size_t(i)*blkSz+j]){
+                    if(common>thresPC1)commonMtx[size_t(i)*blkSz+j]=LINK2MORE;
+                    else if(common==thresPC1)commonMtx[size_t(i)*blkSz+j]=LINK2EQUAL;
+                    else commonMtx[size_t(i)*blkSz+j]=LINK2LESS;
                 }
                 else{
-                    if(common>thresPC2)commonMtx[i*blkSz+j]=UNLINK2MORE;
-                    else if(common==thresPC2)commonMtx[i*blkSz+j]=UNLINK2EQUAL;
-                    else commonMtx[i*blkSz+j]=UNLINK2LESS;
+                    if(common>thresPC2)commonMtx[size_t(i)*blkSz+j]=UNLINK2MORE;
+                    else if(common==thresPC2)commonMtx[size_t(i)*blkSz+j]=UNLINK2EQUAL;
+                    else commonMtx[size_t(i)*blkSz+j]=UNLINK2LESS;
                 }
-                commonMtx[j*blkSz+i]=commonMtx[i*blkSz+j];
+                commonMtx[size_t(j)*blkSz+i]=commonMtx[size_t(i)*blkSz+j];
             }
             if(k==2)continue;
             for(int j=hopSz;j<i;++j){
@@ -400,17 +400,17 @@ namespace ListPlex
                     subg.V[j].Neighbors,
                     subg.V[j].degreeHop
                 );
-                if(commonMtx[i*blkSz+j]){
-                    if(common>thresPP1)commonMtx[i*blkSz+j]=LINK2MORE;
-                    else if(common==thresPP1)commonMtx[i*blkSz+j]=LINK2EQUAL;
-                    else commonMtx[i*blkSz+j]=LINK2LESS;
+                if(commonMtx[size_t(i)*blkSz+j]){
+                    if(common>thresPP1)commonMtx[size_t(i)*blkSz+j]=LINK2MORE;
+                    else if(common==thresPP1)commonMtx[size_t(i)*blkSz+j]=LINK2EQUAL;
+                    else commonMtx[size_t(i)*blkSz+j]=LINK2LESS;
                 }
                 else{
-                    if(common>thresPP2)commonMtx[i*blkSz+j]=UNLINK2MORE;
-                    else if(common==thresPP2)commonMtx[i*blkSz+j]=UNLINK2EQUAL;
-                    else commonMtx[i*blkSz+j]=UNLINK2LESS;
+                    if(common>thresPP2)commonMtx[size_t(i)*blkSz+j]=UNLINK2MORE;
+                    else if(common==thresPP2)commonMtx[size_t(i)*blkSz+j]=UNLINK2EQUAL;
+                    else commonMtx[size_t(i)*blkSz+j]=UNLINK2LESS;
                 }
-                commonMtx[j*blkSz+i]=commonMtx[i*blkSz+j];
+                commonMtx[size_t(j)*blkSz+i]=commonMtx[size_t(i)*blkSz+j];
             }
         }
     }
@@ -433,15 +433,15 @@ namespace ListPlex
             thread_local vector<int> count(pn,0);
             thread_local vector<int> neibors;
             thread_local vector<int> neiborsLeft;
-            thread_local Stack<int> plex(PSIZE_LIMIT);
-            thread_local VtxSet cand1(CAP_LIMIT1);
-            thread_local VtxSet cand2(CAP_LIMIT2);
-            thread_local VtxSet excl(CAP_LIMIT2);
-            thread_local VtxSet exclBK(CAP_LIMIT2);
-            thread_local Stack<int> exclStack(CAP_LIMIT2);
-            thread_local vector<int> neiInP(CAP_LIMIT2,0);
-            thread_local vector<int> neiInG(CAP_LIMIT2);
-            thread_local vector<uint8_t> commonMtx(CAP_LIMIT2*CAP_LIMIT2);
+            thread_local Stack<int> plex;
+            thread_local VtxSet cand1;
+            thread_local VtxSet cand2;
+            thread_local VtxSet excl;
+            thread_local VtxSet exclBK;
+            thread_local Stack<int> exclStack;
+            thread_local vector<int> neiInP;
+            thread_local vector<int> neiInG;
+            thread_local vector<uint8_t> commonMtx;
             thread_local vector<int> blk;//vstart and its right 1a2hop-neighbors
             thread_local vector<int> left;//vstart's left 1a2hop-neighbors
             thread_local vector<uint8_t> inBlk(pn,0);
@@ -494,12 +494,16 @@ namespace ListPlex
                         inBlk[u] = true;
                     for(const auto u: left)
                         inLeft[u] = true;
+                    commonMtx.resize(size_t(blkSz)*blkSz);
+                    neiInP.assign(blkSz, 0);
+                    neiInG.resize(blkSz);
+                    exclStack.resize(blkSz);
                     Graph subg = buildSubgraph(peelG,blk,left,inBlk,inLeft,hopSz,visited,commonMtx);
                     if(subg.proper)buildCommonMtx(subg,blkSz,hopSz,commonMtx);
                     //build search context
-                    plex.resize(hopSz+k);
-                    cand1.resize(hopSz);
-                    cand2.resize(hop2Sz);
+                    plex.resize(blkSz);
+                    cand1.resize(blkSz);
+                    cand2.resize(blkSz);
                     excl.resize(blkSz);
                     exclBK.resize(blkSz);
                     for (int j = 0; j < subg.n; j++){
@@ -508,7 +512,7 @@ namespace ListPlex
                         else cand2.add(j);
                     }
 
-                    DecomposeMaxChecker maxchecker(subg);
+                    DecomposeMaxChecker maxchecker(subg,leftSz);
                     PlexEmitor emitor;
                     KplexListor<DecomposeMaxChecker, PlexEmitor> listor(
                         subg, &maxchecker, &emitor, &plex, &cand1, &cand2, &excl, &exclBK, &exclStack,
@@ -536,7 +540,7 @@ namespace ListPlex
 
         double durat = watch.stop();
         printf("Total valid block %d\n", validblk);
-        printf("Number of %d-plex: %ld\n", k, cntMaxPlex);
+        printf("Number of %d-plex: %llu\n", k, cntMaxPlex);
         printf("Running time: %.3f s\n",durat);
         printf("Task Cnt: %d\n", taskCnt);  
         delete[] dseq;
@@ -545,64 +549,29 @@ namespace ListPlex
         delete[] mark;
         peelG.del();
     }
-inline static int fileSuffixPos(char* filepath) {
-	int j = strlen(filepath) - 1;
-	while (filepath[j] != '.')
-		j--;
-	return j + 1;
-}
 int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_flag,double timeLimit){
-    bd=lower_bound-k_value;
-    k=k_value;
-    lb=lower_bound;
-    time_limit=timeLimit;
-    timer IOtime;
-    int pos = fileSuffixPos(file_path);
-    if(binary_flag==1){
-        if(k_value==0){
-            if(strcmp(file_path + pos, "txt") == 0 ||strcmp(file_path + pos, "clq") == 0){ 
-                main_toBin(file_path);
-                std::strcpy(file_path + pos, "bin");
-                return 0;
-            }
-            else{
-                printf("the file format is not support\n");
-                return 1;
-            } 
-        }
-        if(strcmp(file_path + pos, "txt") == 0){ 
-            IOtime.start();
-            main_toBin(file_path);
-            std::strcpy(file_path + pos, "bin");
-            graph<intT> g = ListPlex::readBinaryGraph(file_path);
-            double time =IOtime.stop();
-            printf("reading time: %.5f ms\n",time*1000);
-            ListPlex::decomposableSearch(g);
-            g.del();
-        }else{
-            printf("the file format is not support\n");
-            return 1;
-        }
+    std::string input(file_path);
+    size_t dot=input.find_last_of('.');
+    if(dot==std::string::npos){fprintf(stderr,"Input file needs .txt, .clq or .bin extension\n");return 2;}
+    std::string suffix=input.substr(dot+1);
+    if(binary_flag){
+        if(suffix!="txt" && suffix!="clq"){fprintf(stderr,"Conversion requires .txt or .clq\n");return 2;}
+        if(main_toBin(file_path))return 2;
+        input.replace(dot+1,std::string::npos,"bin");
+        if(k_value==0) return 0;
+        suffix="bin";
     }
-    else{
-        if(strcmp(file_path + pos, "bin") == 0){  
-        IOtime.start();
-        graph<intT> g = ListPlex::readBinaryGraph(file_path);
-        double time =IOtime.stop();
-        printf("reading time: %.5f ms\n",time*1000);
-        ListPlex::decomposableSearch(g);
-        g.del();
-    }else{
-        IOtime.start();
-        graph<intT> g = ListPlex::readSNAPText(file_path);
-        double time =IOtime.stop();
-        printf("reading time: %.5f ms\n",time*1000);
-        ListPlex::decomposableSearch(g);
-        g.del();
-        }
-    }
+    if(suffix!="bin" && suffix!="txt"){fprintf(stderr,"Enumeration accepts .bin or .txt; convert .clq with -b\n");return 2;}
+    if(k_value<2 || lower_bound<2LL*k_value-1){fprintf(stderr,"Maximal k-plex enumeration requires k>=2 and q>=2k-1\n");return 2;}
+    k=k_value;lb=lower_bound;bd=lb-k;time_limit=timeLimit;
+    timer IOtime;IOtime.start();
+    graph<intT> g = suffix=="bin" ? readBinaryGraph(input.c_str()) : readSNAPText(input.c_str());
+    printf("reading time: %.5f ms\n",IOtime.stop()*1000);
+    decomposableSearch(g);
+    g.del();
     return 0;
 }
+
 void exitHandler() {
                 std::cout << "Total valid block " << validblk << std::endl;
                 std::cout << "Number of " << k << "-plex: " << cntMaxPlex << " (incomplete)" << std::endl;

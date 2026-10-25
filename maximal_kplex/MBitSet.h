@@ -7,6 +7,7 @@
 #endif
 #include <algorithm>
 #include <cstdint>
+#include <new>
 
 #ifdef __SSE2__
 #include <immintrin.h>
@@ -192,6 +193,19 @@ public:
 		if (buf != nullptr)
 			FreeBuf(buf);
 	}
+
+    void reserve(int range) {
+        if (range <= cap && buf) return;
+        int words = range >> 5;
+        uint32_t *grown = (uint32_t*)AllocBuf((size_t(words) + 1) * sizeof(uint32_t));
+        if (!grown) throw std::bad_alloc();
+        memset(grown, 0, (size_t(words) + 1) * sizeof(uint32_t));
+        if (buf) {
+            memcpy(grown, buf, (size_t(n) + 1) * sizeof(uint32_t));
+            FreeBuf(buf);
+        }
+        buf = grown; n = words; cap = range;
+    }
 
 	void clear() {
 		memset(buf,0,sizeof(uint32_t)*(n+1));

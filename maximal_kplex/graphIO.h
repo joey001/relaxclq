@@ -32,7 +32,7 @@ inline graph<intT> readSNAPText(const char* filepath) {
     ui n_IO, m_IO;
     ui* pstart_IO;
     ui* edges_IO;
-    ui* reverse;
+
 	std::ifstream infile;
 	char buf[1024];
 	std::vector<std::pair<ui, ui> > epairs;
@@ -85,14 +85,14 @@ inline graph<intT> readSNAPText(const char* filepath) {
 		integer_to_string(n_IO).c_str(),
 		integer_to_string(m_IO).c_str());
 	pstart_IO = new ui[n_IO + 1];
-	edges_IO = new ui[m_IO];
-	reverse = new ui[m_IO];
+	edges_IO = in + 2 + n_IO;
+
 	ui j = 0;
 	for (ui i = 0; i < n_IO; i++) {
 		pstart_IO[i] = j;
 		while (j < m_IO && epairs[j].first == nodes[i]) {
 			edges_IO[j] = idmp[epairs[j].second];
-			reverse[j] = i;
+
 			++j;
 		}
 	}
@@ -105,10 +105,14 @@ inline graph<intT> readSNAPText(const char* filepath) {
     {
         uintT d = degree[i];
         uintT o = pstart_IO[i];
+        in[i + 2] = o;
         v[i].degree = d;
+        v[i].NeighborsLeft = nullptr;
+        v[i].degreeLeft = v[i].degreeHop = 0;
         v[i].Neighbors = (intT*)(edges_IO+o);
       }
-      free(degree);
+      delete[] degree;
+      delete[] pstart_IO;
     return graph<intT>(v, (intT)n_IO, (uintT)m_IO, (intT *)in);
 }
 inline void writeBinaryGraph(const char *filepath, const graph<intT> &g){
@@ -125,6 +129,7 @@ inline void writeBinaryGraph(const char *filepath, const graph<intT> &g){
     fwrite(degree, sizeof(ui), g.n, f);
     fwrite(g.allocatedInplace + 2 + g.n, sizeof(ui), g.m, f);
     fclose(f);
+    delete[] degree;
   }
 
   //read graph from binary file
@@ -153,8 +158,6 @@ inline void writeBinaryGraph(const char *filepath, const graph<intT> &g){
       //degree
       uintT *degree = newA(uintT, n_IO);
       utils::fread_wall(degree, sizeof(uintT), n_IO, f);
-      //if (reverse != nullptr) delete[] reverse;
-      //reverse = new ui[m_IO];
       uintT sum = 0;
       for (uintT i = 0; i < n_IO; i++)
       {
@@ -169,6 +172,8 @@ inline void writeBinaryGraph(const char *filepath, const graph<intT> &g){
           uintT d = degree[i];
           uintT o = offset[i];
           v[i].degree = d;
+          v[i].NeighborsLeft = nullptr;
+          v[i].degreeLeft = v[i].degreeHop = 0;
           v[i].Neighbors = (intT *)edges_IO + o;
       }
       fclose(f);
@@ -186,7 +191,7 @@ inline void writeBinaryGraph(const char *filepath, const graph<intT> &g){
                 printf("%d ", nei);
                 auto r= find(g.V[nei].Neighbors, g.V[nei].Neighbors + g.V[nei].degree, i);
                 assert(r != g.V[nei].Neighbors + g.V[nei].degree);
-            } 
+            }
             printf("\n_IO");
         }
         assert(ecnt == g.m);
