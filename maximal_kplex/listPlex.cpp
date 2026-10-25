@@ -1,35 +1,49 @@
 int k,lb,bd;
-thread_local unsigned long long cntT=0;
-#include <atomic>
-//std::atomic<long> cntT(0);
-int workers,workers1t2;
-int taskCnt = 0,overCnt=0;
 double time_limit=-1;
-bool timeOver=false;
-int validblk=0;
-unsigned long long cntMaxPlex=0;
-double costTime=0;
-#include "timer.h"
-timer watch;
-//statistics for schedule
-#include <cmath>
+#include <parlay/parallel.h>
 #include "listPlex.h"
+#undef parallel_for
+#include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <queue>
-#if defined(TIMER)
-double decomposeTime(0);
-double buildTime(0);
-double listTime(0);
-#endif
-#include <thread>
-#include <mutex>
+#include <atomic>
 std::mutex coutMutex;
+namespace {
+using Clock = std::chrono::steady_clock;
+Clock::time_point searchStart;
+}
 namespace ListPlex
 {
-    struct PlexEmitor{
-        //only count the number
-        void emitPlex(){
-            cntT++;
-            //cntT.fetch_add(1);
+    void checkTimeLimit() {
+        if (time_limit >= 0 && std::chrono::duration<double>(Clock::now()-searchStart).count() >= time_limit) {
+            std::lock_guard<std::mutex> lock(coutMutex);
+            fprintf(stderr,"Time limit reached (incomplete)\n");
+            std::exit(1);
+        }
+    }
+
+    struct PlexEmitor {
+        unsigned long long count=0;
+#ifdef LISTPLEX_EMIT_SOLUTIONS
+        const std::vector<int>& blk;
+        const std::vector<int>& originalIDs;
+        PlexEmitor(const std::vector<int>& b,const std::vector<int>& ids):blk(b),originalIDs(ids) {}
+#else
+        PlexEmitor(const std::vector<int>&,const std::vector<int>&) {}
+#endif
+        void emitPlex(const int* list,int size) {
+            ++count;
+#ifdef LISTPLEX_EMIT_SOLUTIONS
+            std::vector<int> solution;
+            solution.reserve(size);
+            for (int i=0;i<size;++i) solution.push_back(originalIDs[blk[list[i]]]);
+            std::sort(solution.begin(),solution.end());
+            std::lock_guard<std::mutex> lock(coutMutex);
+            printf("SOLUTION");
+            for (int v:solution) printf(" %d",v);
+            printf("\n");
+#endif
         }
     };
 
@@ -37,9 +51,9 @@ namespace ListPlex
     {
         const graph<int> subg; //check in the subgraph(contains all possible nodes and edges) for cache-efficiency
 
-        const int leftCapacity;
+        RandSet<int> uni;
         DecomposeMaxChecker(const graph<int> &_subg, int leftSize)
-            : subg(_subg), leftCapacity(leftSize){}
+            : subg(_subg), uni(leftSize){}
 
         //Count the number of adjacent vertices of u in the plex
         bool canGlobalAdd(int u, int szplex,int* plex){
@@ -54,17 +68,15 @@ namespace ListPlex
                 return true; //can add
             return false;	//can not add
         }
-        
+
         //Check if the vertices in list in a globaly maximal k-plex
         //i.e., maximality : all vertices in Preds cannot form a larger k-plex with list.
         bool isMaximal(int *list, int szplex, int* neiInP)
-        {   
+        {
             // saturated vertices;
             std::vector<int> sat(szplex); //saturated vertices in plex
             int nsat = 0;
             bool max = true;
-            thread_local RandSet<int> uni;
-            uni.resize(leftCapacity);
             for (int i = 0; i < szplex; i++){
                 const int v = list[i];
                 if (neiInP[v] + k == szplex){
@@ -73,14 +85,14 @@ namespace ListPlex
             }
             if (nsat){
                 int v0 = sat[0];
-                int *commons = new int[subg.V[v0].degreeLeft];                             
+                int *commons = new int[subg.V[v0].degreeLeft];
                 copy(subg.V[v0].NeighborsLeft, subg.V[v0].NeighborsLeft + subg.V[v0].degreeLeft, commons);
                 int szcom = subg.V[v0].degreeLeft;
                 for (int i = 1; i < nsat; i++){
                     int u = sat[i];
-                    szcom = utils::interSection(subg.V[u].NeighborsLeft, subg.V[u].degreeLeft, commons, szcom, commons);                    
+                    szcom = utils::interSection(subg.V[u].NeighborsLeft, subg.V[u].degreeLeft, commons, szcom, commons);
                 }
-                //(commons,szcom) contains all common left-adajcent vertices of saturated vertices                
+                //(commons,szcom) contains all common left-adajcent vertices of saturated vertices
                 if(nsat==1){
                     for (int i = 0; i < k;++i){
                         int u = list[i];
@@ -104,9 +116,9 @@ namespace ListPlex
                         max = false;
                         break;
                     }
-                }   
+                }
                 delete[] commons;
-            }             
+            }
             else{//no saturated vertex
                 for (int i = 0; i < k;++i){
                     int u = list[i];
@@ -127,7 +139,7 @@ namespace ListPlex
                 uni.clearByEle();
 	    	}
 	    	return max;
-		}      
+		}
     };
 
     //Decompose a local graph contains vstart and its 1a2hop-neighbors from the global graph
@@ -135,7 +147,7 @@ namespace ListPlex
         //collect 1 hop neigbors
         visited[vstart]  = 1;
         for(int j = 0; j < g.V[vstart].degree; j++){
-            const int nei = g.V[vstart].Neighbors[j];                    
+            const int nei = g.V[vstart].Neighbors[j];
             if (!visited[nei]){
                 visited[nei] = 1;
                 if(dpos[vstart]<dpos[nei])//1-hop right-neighbor
@@ -230,11 +242,12 @@ namespace ListPlex
         }
         neibors.clear();
         neiborsLeft.clear();
+        visited[vstart] = 0; // no residual state may cross root boundaries
         return sz+1;
     }
 
-    //Build edges among the local nodes 
-    Graph buildSubgraph(const Graph &g,const vector<int>& blk,const vector<int>& left,const vector<uint8_t> &inBlk, const vector<uint8_t> &inLeft,const int hopSz,vector<uint8_t> &isNei,vector<uint8_t> &commonMtx){  
+    //Build edges among the local nodes
+    Graph buildSubgraph(const Graph &g,const vector<int>& blk,const vector<int>& left,vector<uint8_t> &inBlk, vector<uint8_t> &inLeft,const int hopSz,vector<uint8_t> &isNei,vector<uint8_t> &commonMtx){
         const int blkSz = blk.size();
         const int leftSz = left.size();
         vertex<int> *vertices = newA(vertex<int>, blkSz);
@@ -258,8 +271,8 @@ namespace ListPlex
             vertices[i].degree=ne;
             vertices[i].degreeLeft=neLeft;
 
-            //add right edges      
-            int cnt = 0;  
+            //add right edges
+            int cnt = 0;
             for (int j = 0; j < blkSz; j++){
                 const int nei = blk[j];
                 commonMtx[size_t(i)*blkSz+j]=isNei[nei];
@@ -285,12 +298,10 @@ namespace ListPlex
         return Graph(vertices, blkSz, 0, nullptr, proper);
     }
 
-    Graph peelGraph(const Graph &g,bool* const mark,int * const resNei){
+    Graph peelGraph(const Graph &g,bool* const mark,int * const resNei,vector<int>& originalIDs){
         const int n=g.n;
-        #pragma omp parallel
         {
-            thread_local queue<int> Q;
-            #pragma omp for
+            queue<int> Q;
             for(int i=0;i<n;++i){
                 if(g.V[i].degree<bd){
                     mark[i]=false;
@@ -302,15 +313,12 @@ namespace ListPlex
                 }
             }
             while(Q.size()){
-                volatile const int ele=Q.front();
+                const int ele=Q.front();
                 Q.pop();
                 for(int i=0;i<g.V[ele].degree;++i){
                    const int nei=g.V[ele].Neighbors[i];
                     if(mark[nei]){
-                        int old=resNei[nei];
-                        while(!utils::CAS(&resNei[nei],old,old-1)){
-                            old=resNei[nei];
-                        }
+                        const int old=resNei[nei]--;
                         if(old==bd){
                             mark[nei]=false;
                             Q.push(nei);
@@ -321,15 +329,13 @@ namespace ListPlex
         }
 
         int* const map=new int[n];
-        #pragma omp parallel for
         for(int i=0;i<n;++i)map[i]=i;
         _seq<int> leadList = sequence::pack(map, mark, n);
-        
+
         const int pn=leadList.n;
-        #pragma omp parallel for
+        originalIDs.assign(leadList.A,leadList.A+pn);
         for(int i=0;i<pn;++i)map[leadList.A[i]]=i;
         vertex<int> *vertices = newA(vertex<int>, pn);
-        #pragma omp parallel for
         for (int i = 0; i < pn; i++){
             const int ori = leadList.A[i];
             const int en=resNei[ori];
@@ -415,139 +421,102 @@ namespace ListPlex
         }
     }
 
-    //Local decompose --> Tree Search
-    void decomposableSearch(const Graph &g){
-        int *dpos = new int[g.n];
-        int *dseq = new int[g.n];
-        bool *mark = new bool[g.n];
-        int *resNei = new int[g.n];
-        #pragma omp parallel for
-        for(int i=0;i<g.n;++i)dpos[i]=INT_MAX;
-        watch.start();
-        Graph peelG=peelGraph(g,mark,resNei);
+    // P004: serial preprocessing, then reusable logical root streams.
+    // Root callbacks never yield or create nested parallel work. Every mutable
+    // search object is callback-owned; shared graph/order vectors are read-only.
+    void decomposableSearch(const Graph &g) {
+        searchStart=Clock::now();
+        std::vector<int> dpos(g.n,INT_MAX),dseq(g.n),resNei(g.n),originalIDs;
+        std::unique_ptr<bool[]> mark(new bool[g.n]);
+        Graph peelG=peelGraph(g,mark.get(),resNei.data(),originalIDs);
         const int pn=peelG.n;
-        volatile bool* const ready=(volatile bool*)mark;
-        #pragma omp parallel
-        {
-            thread_local vector<uint8_t> visited(pn,0);
-            thread_local vector<int> count(pn,0);
-            thread_local vector<int> neibors;
-            thread_local vector<int> neiborsLeft;
-            thread_local Stack<int> plex;
-            thread_local VtxSet cand1;
-            thread_local VtxSet cand2;
-            thread_local VtxSet excl;
-            thread_local VtxSet exclBK;
-            thread_local Stack<int> exclStack;
-            thread_local vector<int> neiInP;
-            thread_local vector<int> neiInG;
-            thread_local vector<uint8_t> commonMtx;
-            thread_local vector<int> blk;//vstart and its right 1a2hop-neighbors
-            thread_local vector<int> left;//vstart's left 1a2hop-neighbors
-            thread_local vector<uint8_t> inBlk(pn,0);
-            thread_local vector<uint8_t> inLeft(pn,0);
-            #pragma omp for
-            for(int i=0;i<pn;++i)mark[i]=false;
-            #pragma omp master
-            {
-                ListLinearHeap<int> *linear_heap = new ListLinearHeap<int>(pn, pn-1);
-                linear_heap->init(pn, pn-1);
-                for(int i=0;i<pn;++i){
-                    linear_heap->insert(i,peelG.V[i].degree);
-                }
-                for (int i = 0; i < pn; i++) {
-                    int u, key;
-                    linear_heap->pop_min(u, key);
-                    dpos[u] = i;
-                    dseq[i] = u;
-                    ready[i] = true;
-                    for (int j = 0; j < peelG.V[u].degree; j++){
-                        const int nei = peelG.V[u].Neighbors[j];
-                        if(dpos[nei]==INT_MAX) {
-                            linear_heap->decrement(nei);
-                        }
-                    }
-                }
-                delete linear_heap;
-            }
-
-            #pragma omp for schedule(dynamic) reduction(+:validblk)
-            for(int idx = 0; idx < pn; idx++){
-                while(!ready[idx]);
-                // Search with leading vertex vstart;
-                const int vstart=dseq[idx];
-
-                // decompose the graph with leading vertex vstart
-                blk.clear();
-                left.clear();
-                const int hopSz=decompose(peelG,vstart,blk,left,dpos,visited,count,neibors,neiborsLeft);
-                const int blkSz=blk.size();
-                if (blkSz>=lb) {
-                    const int hop2Sz=blkSz-hopSz;
-                    const int leftSz=left.size();
-                    validblk++;
-                    //updata task statistics
-                    #pragma omp atomic
-                    taskCnt++;
-                    //build subgraph 
-                    for(const auto u: blk)
-                        inBlk[u] = true;
-                    for(const auto u: left)
-                        inLeft[u] = true;
-                    commonMtx.resize(size_t(blkSz)*blkSz);
-                    neiInP.assign(blkSz, 0);
-                    neiInG.resize(blkSz);
-                    exclStack.resize(blkSz);
-                    Graph subg = buildSubgraph(peelG,blk,left,inBlk,inLeft,hopSz,visited,commonMtx);
-                    if(subg.proper)buildCommonMtx(subg,blkSz,hopSz,commonMtx);
-                    //build search context
-                    plex.resize(blkSz);
-                    cand1.resize(blkSz);
-                    cand2.resize(blkSz);
-                    excl.resize(blkSz);
-                    exclBK.resize(blkSz);
-                    for (int j = 0; j < subg.n; j++){
-                        neiInG[j] = subg.V[j].degreeHop;
-                        if(j<hopSz)cand1.add(j);
-                        else cand2.add(j);
-                    }
-
-                    DecomposeMaxChecker maxchecker(subg,leftSz);
-                    PlexEmitor emitor;
-                    KplexListor<DecomposeMaxChecker, PlexEmitor> listor(
-                        subg, &maxchecker, &emitor, &plex, &cand1, &cand2, &excl, &exclBK, &exclStack,
-                        neiInP.data(), neiInG.data(), hopSz, hop2Sz, commonMtx);
-
-                    //#pragma omp taskgroup
-                    listor.cand1ToPlex(0)->kSearch(k-1);//start from the first vertex
-                    
-                    for(const auto u: blk)
-                        inBlk[u] = false;
-                    for(const auto u: left)
-                        inLeft[u] = false;
-                    listor.plexToCand1();
-                    cand1.clear();
-                    cand2.clear();
-                    subg.del();
-                    //updata task statistics
-                    #pragma omp atomic
-                    overCnt++;
+        if (pn) {
+            ListLinearHeap<int> heap(pn,pn-1);
+            heap.init(pn,pn-1);
+            for (int i=0;i<pn;++i) heap.insert(i,peelG.V[i].degree);
+            for (int i=0;i<pn;++i) {
+                int u,key; heap.pop_min(u,key); dpos[u]=i; dseq[i]=u;
+                for (int j=0;j<peelG.V[u].degree;++j) {
+                    const int nei=peelG.V[u].Neighbors[j];
+                    if (dpos[nei]==INT_MAX) heap.decrement(nei);
                 }
             }
         }
-        #pragma omp parallel reduction(+:cntMaxPlex)
-        cntMaxPlex+=cntT;
-
-        double durat = watch.stop();
-        printf("Total valid block %d\n", validblk);
-        printf("Number of %d-plex: %llu\n", k, cntMaxPlex);
-        printf("Running time: %.3f s\n",durat);
-        printf("Task Cnt: %d\n", taskCnt);  
-        delete[] dseq;
-        delete[] resNei;
-        delete[] dpos;
-        delete[] mark;
-        peelG.del();
+        const auto rootsStart=Clock::now();
+        const size_t workers=parlay::num_workers();
+        printf("Parlay workers: %zu\n",workers);
+        // Q*n <= n + sum_v degree(v)^2. Saturate at the useful worker cap
+        // before adding, so even enormous input bounds cannot overflow.
+        const size_t cap=std::min(workers,size_t(pn));
+        const uint64_t budget=cap ? uint64_t(cap-1)*uint64_t(pn) : 0;
+        uint64_t degreeWork=0;
+        for (int v=0;v<pn && degreeWork<budget;++v) {
+            const uint64_t d=peelG.V[v].degree;
+            degreeWork+=std::min(d*d,budget-degreeWork);
+        }
+        const size_t streams=pn ? std::min(cap,size_t(1+degreeWork/uint64_t(pn))) : 0;
+        struct Result { unsigned long long count=0; size_t valid=0,roots=0; };
+        std::vector<Result> results(streams);
+        std::atomic<size_t> next{0};
+        parlay::parallel_for(0,streams,[&](size_t stream) {
+            // This callback owns its scratch until completion. It never forks,
+            // yields to nested Parlay work, or indexes scratch by worker_id.
+            vector<uint8_t> visited(pn,0),inBlk(pn,0),inLeft(pn,0),commonMtx;
+            vector<int> count(pn,0),neibors,neiborsLeft,blk,left,neiInP,neiInG;
+            Stack<int> plex,exclStack;
+            VtxSet cand1,cand2,excl,exclBK;
+            Result& result=results[stream];
+            for (;;) {
+                const size_t idx=next.fetch_add(1,std::memory_order_relaxed);
+                if (idx>=size_t(pn)) break;
+                ++result.roots;
+                checkTimeLimit();
+                blk.clear();left.clear();
+                const int vstart=dseq[idx];
+                const int hopSz=decompose(peelG,vstart,blk,left,dpos.data(),visited,count,neibors,neiborsLeft);
+                const int blkSz=blk.size();
+                if (blkSz<lb) continue;
+                ++result.valid;
+                const int hop2Sz=blkSz-hopSz,leftSz=left.size();
+                for (int u:blk) inBlk[u]=true;
+                for (int u:left) inLeft[u]=true;
+                commonMtx.resize(size_t(blkSz)*blkSz);
+                neiInP.assign(blkSz,0);neiInG.resize(blkSz);
+                plex.resize(blkSz);exclStack.resize(blkSz);
+                cand1.resize(blkSz);cand2.resize(blkSz);excl.resize(blkSz);exclBK.resize(blkSz);
+                Graph subg=buildSubgraph(peelG,blk,left,inBlk,inLeft,hopSz,visited,commonMtx);
+                if (subg.proper) buildCommonMtx(subg,blkSz,hopSz,commonMtx);
+                for (int j=0;j<subg.n;++j) {
+                    neiInG[j]=subg.V[j].degreeHop;
+                    if (j<hopSz) cand1.add(j); else cand2.add(j);
+                }
+                DecomposeMaxChecker maxchecker(subg,leftSz);
+                PlexEmitor emitor(blk,originalIDs);
+                KplexListor<DecomposeMaxChecker,PlexEmitor> listor(
+                    subg,&maxchecker,&emitor,&plex,&cand1,&cand2,&excl,&exclBK,&exclStack,
+                    neiInP.data(),neiInG.data(),hopSz,hop2Sz,commonMtx);
+                listor.cand1ToPlex(0)->kSearch(k-1);
+                result.count+=emitor.count;
+                for (int u:blk) inBlk[u]=false;
+                for (int u:left) inLeft[u]=false;
+                listor.plexToCand1();
+                cand1.clear();cand2.clear();
+            }
+        },1);
+        unsigned long long cntMaxPlex=0;
+        size_t validblk=0,rootCount=0;
+        for (const Result& result:results) {
+            cntMaxPlex+=result.count;validblk+=result.valid;rootCount+=result.roots;
+        }
+        const auto done=Clock::now();
+        printf("Preprocessing time: %.6f s\n",std::chrono::duration<double>(rootsStart-searchStart).count());
+        printf("Root search time: %.6f s\n",std::chrono::duration<double>(done-rootsStart).count());
+        printf("Root streams: %zu\n",streams);
+        printf("Dense scratch bytes: %llu\n",7ULL*streams*size_t(pn));
+        printf("Total valid block %zu\n",validblk);
+        printf("Number of %d-plex: %llu\n",k,cntMaxPlex);
+        printf("Running time: %.3f s\n",std::chrono::duration<double>(done-searchStart).count());
+        printf("Task Cnt: %zu\n",rootCount);
     }
 int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_flag,double timeLimit){
     std::string input(file_path);
@@ -572,17 +541,4 @@ int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_fl
     return 0;
 }
 
-void exitHandler() {
-                std::cout << "Total valid block " << validblk << std::endl;
-                std::cout << "Number of " << k << "-plex: " << cntMaxPlex << " (incomplete)" << std::endl;
-                std::cout << "Running time: " << std::fixed << std::setprecision(3) << costTime << " s" << std::endl;
-                std::cout << "Task Cnt: " << taskCnt << std::endl;               
-                if (time_limit >= 0) {
-                    std::cout << "Time limit: " << std::fixed << std::setprecision(3) << time_limit << " seconds" << std::endl;
-                }
-                    printf("Type: %s\n", "Maximal");
-                if (lb >= 0) {
-                    std::cout << "Lower bound: " << lb << std::endl; 
-                        }
-        }
 }

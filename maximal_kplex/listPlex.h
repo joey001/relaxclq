@@ -1,17 +1,7 @@
 #ifndef LISTPLEX_H
 #define LISTPLEX_H
 extern int k,lb,bd;
-extern thread_local unsigned long long cntT;
-#include <atomic>
-//extern std::atomic<long> cntT;
-//extern long cntT;
-extern int workers,workers1t2;
-extern int taskCnt,overCnt;
 extern double time_limit;
-extern bool timeOver;
-extern int validblk;
-extern unsigned long long cntMaxPlex;
-extern double costTime;
 #include <cassert>
 #include <functional>
 #include "config.h"
@@ -28,7 +18,7 @@ extern std::mutex coutMutex;
 extern timer watch;
 namespace ListPlex{
     int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_flag,double time_limit);
-    void exitHandler();
+    void checkTimeLimit();
     using VtxSet = RandSet<int>;
     using Graph = graph<int>;
     enum : uint8_t{
@@ -69,24 +59,6 @@ namespace ListPlex{
         ,plex(_plex),cand1(_cand1),cand2(_cand2),excl(_excl),exclBK(_exclBK),exclStack(_exclStack)
         ,neiInP(_neiInP),neiInG(_neiInG),hopSz(_hopSz),hop2Sz(_hop2Sz),commonMtx(_commonMtx)
         {
-        }
-
-        KplexListor(const KplexListor& o)
-        :subg(o.subg),plexMaxChecker(o.plexMaxChecker),emitor(o.emitor)
-        ,plex(new Stack<int>(*(o.plex))),cand1(new VtxSet(*(o.cand1))),cand2(nullptr),excl(new VtxSet(*(o.excl))),exclBK(nullptr),exclStack(new Stack<int>(o.exclStack->cap))
-        ,neiInP(new int[subg.n]),neiInG(new int[subg.n]),hopSz(o.hopSz),hop2Sz(o.hop2Sz),commonMtx(o.commonMtx)
-        {
-            memcpy(neiInP, o.neiInP,sizeof(int)*subg.n);
-            memcpy(neiInG, o.neiInG, sizeof(int)*subg.n);
-        }
-
-        void del(){
-            delete plex;
-            delete cand1;
-            delete excl;
-            delete exclStack;
-            delete[] neiInP;
-            delete[] neiInG;
         }
 
         size_t getIdx(const int v1,const int v2){
@@ -350,18 +322,7 @@ namespace ListPlex{
             return true;
         }
         void kSearch(const int res){
-            costTime=watch.stop();
-            if(costTime>=time_limit){     { 
-                #pragma omp parallel reduction(+:cntMaxPlex)
-                cntMaxPlex+=cntT;
-                if(!timeOver){
-                timeOver=true;
-                std::atexit(exitHandler); 
-                }
-                std::lock_guard<std::mutex> lock(coutMutex);
-                exit(1);
-                }
-            }
+            checkTimeLimit();
             int recExcl=0,recExclTmp;
             std::vector<int> recCand1(size_t(res)+1), recCand2(size_t(res)+1);
             if(cand2->sz==0){
@@ -435,7 +396,7 @@ namespace ListPlex{
             }
             if (flag&&plexMaxChecker->isMaximal(plex->members, plex->sz, neiInP))
             {
-                emitor->emitPlex();
+                emitor->emitPlex(plex->members, plex->sz);
             }
             plex->sz -= cand1->sz;
             neiInP = tmp;
@@ -454,28 +415,6 @@ namespace ListPlex{
                 excl->add(exclStack->top());
                 exclStack->pop();
                 recExcl--;
-            }
-            //In the second branch, remove pivot
-            cand1ToExcl(pivot)->listByCase();
-            exclToCand1(pivot);
-        }
-
-        void branchInCand(const int pivot)
-        {
-            //In the first branch, select pivot
-            //update task statistics
-            #pragma omp atomic
-            taskCnt++;
-            KplexListor *listor = new KplexListor(*this);
-            #pragma omp task firstprivate(listor,pivot)
-            {
-                int tmp;
-                listor->cand1ToPlex(pivot)->updateCand1Fake(tmp,pivot)->updateExcl(tmp,pivot)->listByCase();
-                listor->del();
-                delete listor;
-                //update task statistics
-                #pragma omp atomic
-                overCnt++;
             }
             //In the second branch, remove pivot
             cand1ToExcl(pivot)->listByCase();
@@ -569,97 +508,6 @@ namespace ListPlex{
             }
         }
 
-        void branchInPlex(const int pivot){
-            const int tot = k + neiInP[pivot] - plex->sz;
-            assert(tot > 0);
-            std::vector<int> addList(tot);
-            int tmp = 0;
-            //Filter cand1 and find non-adjacent nodes
-            for (VtxSet::TIndex i = 0; i < cand1->sz; i++)
-            {
-                const int u = cand1->members[i];
-                if (!isAdjMtx(pivot, u))
-                {
-                    addList[tmp++] = u;
-                }
-                if (tmp == tot)
-                    break;
-            }
-            assert(tmp == tot);
-            //There are at most tol+1 branches.
-            //br0
-            KplexListor* listorBK = new KplexListor(*this); //stand
-            KplexListor* listorNOW= new  KplexListor(*this);
-            KplexListor *listorNEXT;
-            for (int j = 0; j < tot ;++j){
-                #pragma omp atomic
-                taskCnt++;
-                //1.exclusive the first
-                listorNOW->cand1ToExcl(addList[j]);
-                if(j!=tot-1){
-                    //2. store for the next
-                    listorNEXT = new KplexListor(*listorNOW);
-                    //3. mark the second
-                    const int v2add=addList[j + 1];
-                    listorNOW->cand1ToPlex(v2add)->updateCand1(tmp,v2add)->updateExcl(tmp,v2add);
-                }
-                //4. parallel
-                #pragma omp task firstprivate(listorNOW)
-                {
-                    listorNOW->listByCase();
-                    listorNOW->del();
-                    delete listorNOW;
-                    #pragma omp atomic
-                    overCnt++;
-                }
-                listorNOW = listorNEXT;
-            }
-
-            //Proceed br1 in [1,tol-1); there are at least 2 branches
-            //add in addList[0,...,br), remove addList[br].
-            int v2delete,v2add;
-            //start from the 1st br.
-            int br = 1;
-            for (; br < tot; br++)
-            {
-                v2add = addList[br - 1];
-                v2delete = addList[br];
-                //if v2add has not been reduced by feasibility condition, i.e., v2add in cand1
-                //or the graph size is above lb. stop
-                if (listorBK->cand1->contains(v2add) && listorBK->plex->sz + listorBK->cand1->sz >= lb) 
-                {
-                    #pragma omp atomic
-                    taskCnt++;
-                    //move v2 add to plex and update cand1
-                    listorBK->cand1ToPlex(v2add)->updateCand1(tmp,v2add)->updateExcl(tmp,v2add);
-                    KplexListor* listorBR = new KplexListor(*listorBK);
-                    #pragma omp task firstprivate(listorBR)
-                    {
-                        //if v2delete is still in cand1, remove it ;
-                        if (listorBR->cand1->contains(v2delete))listorBR->cand1ToExcl(v2delete);
-                        listorBR->listByCase();
-                        listorBR->del();
-                        delete listorBR;
-                        #pragma omp atomic
-                        overCnt++;
-                    }
-                }
-                else
-                {
-                    break;
-                }
-            }
-            //The last (tolth) branch.
-            if (br == tot && listorBK->cand1->contains(addList[br - 1]) && listorBK->plex->sz + listorBK->cand1->sz >= lb)
-            {
-                v2add = addList[tot - 1];
-                listorBK->cand1ToPlex(v2add)->updateCand1(tmp,v2add)->updateExcl(tmp,v2add); //all vertices in addList has moved to plex        
-                listorBK->listByCase();
-            }
-            listorBK->del();
-            delete listorBK;
-        }
-
         bool bound1() {
             vp.clear();
             for(int i = 0;i < plex->sz;i ++) vp.push_back(std::make_pair(k-(plex->sz-neiInP[plex->members[i]]), plex->members[i]));
@@ -735,7 +583,7 @@ namespace ListPlex{
             {
                 if (excl->sz == 0 && plexMaxChecker->isMaximal(plex->members, plex->sz, neiInP))
                 {
-                    emitor->emitPlex();
+                    emitor->emitPlex(plex->members, plex->sz);
                 }
                 return;
             }
@@ -760,19 +608,9 @@ namespace ListPlex{
                 checkAsMaxPlex();   //P+C is a k-plex
                 return;
             }
-            const int grainSize = 10;
-            if (minneiPlex==minnei) //Pivot is in plex
-            {
-                if(taskCnt>=workers1t2&&(taskCnt-overCnt<workers)&&(cand1->sz>grainSize))
-                    branchInPlex(pivot);
-                else branchInPlexBase(pivot);
-            }
-            else
-            {
-                if((taskCnt>=workers1t2)&&(taskCnt-overCnt<workers)&&(cand1->sz>grainSize))
-                    branchInCand(pivot);
-                else branchInCandBase(pivot);
-            }
+            // P004 only parallelizes independent roots; each search is serial.
+            if (minneiPlex==minnei) branchInPlexBase(pivot);
+            else branchInCandBase(pivot);
         }
 
         void printContextInfo(){
