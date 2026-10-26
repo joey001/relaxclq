@@ -74,8 +74,16 @@ namespace ListPlex
 
         //Check if the vertices in list in a globaly maximal k-plex
         //i.e., maximality : all vertices in Preds cannot form a larger k-plex with list.
-        bool isMaximal(int *list, int szplex, int* neiInP)
+        bool isMaximal(int *list, int szplex, ShiftedCounts neiInP)
         {
+#ifdef P011_DIAGNOSTICS
+            for(int i=0;i<szplex;++i){
+                int v=list[i],count=0;
+                for(int j=0;j<szplex;++j)
+                    count+=std::binary_search(subg.V[v].Neighbors,subg.V[v].Neighbors+subg.V[v].degree,list[j]);
+                if(neiInP[v]!=count) std::abort();
+            }
+#endif
             // saturated vertices;
             std::vector<int> sat(szplex); //saturated vertices in plex
             int nsat = 0;
@@ -250,7 +258,7 @@ namespace ListPlex
     }
 
     //Build edges among the local nodes
-    Graph buildSubgraph(const Graph &g,const vector<int>& blk,const vector<int>& left,vector<uint8_t> &inBlk, vector<uint8_t> &inLeft,const int hopSz,vector<uint8_t> &isNei,vector<uint8_t> &commonMtx){
+    Graph buildSubgraph(const Graph &g,const vector<int>& blk,const vector<int>& left,vector<uint8_t> &inBlk, vector<uint8_t> &inLeft,const int hopSz,vector<uint8_t> &isNei,vector<uint8_t> &commonMtx,UpdateRows& updateRows){
         const int blkSz = blk.size();
         const int leftSz = left.size();
         vertex<int> *vertices = newA(vertex<int>, blkSz);
@@ -274,6 +282,9 @@ namespace ListPlex
             vertices[i].degree=ne;
             vertices[i].degreeLeft=neLeft;
 
+            // Fill selected closed complements in the existing matrix traversal.
+            int* closed=updateRows.initializeRow(i,ne,vertices[i].Neighbors);
+            int closedCnt=0;
             //add right edges
             int cnt = 0;
             for (int j = 0; j < blkSz; j++){
@@ -283,8 +294,10 @@ namespace ListPlex
                     vertices[i].Neighbors[cnt++] = j;
                     isNei[nei]=false;
                 }
+                else if(closed) closed[closedCnt++]=j; // includes i (no self loops)
                 if(j==hopSz-1)vertices[i].degreeHop=cnt;
             }
+            assert(!closed || closedCnt==blkSz-ne);
             //add left edges
             cnt = 0;
             for (int j = 0; j < leftSz; j++){
@@ -458,7 +471,11 @@ namespace ListPlex
             degreeWork+=std::min(d*d,budget-degreeWork);
         }
         const size_t streams=pn ? std::min(cap,size_t(1+degreeWork/uint64_t(pn))) : 0;
-        struct Result { unsigned long long count=0; size_t valid=0,roots=0; unsigned long long snapshots=0,snapshotCapacityBytes=0; };
+        struct Result { unsigned long long count=0; size_t valid=0,roots=0; unsigned long long snapshots=0,snapshotCapacityBytes=0;
+#ifdef P011_DIAGNOSTICS
+            MinorityStats stats;
+#endif
+        };
         std::vector<Result> results(streams);
         std::atomic<size_t> next{0};
         parlay::parallel_for(0,streams,[&](size_t stream) {
@@ -487,7 +504,8 @@ namespace ListPlex
                 neiInP.assign(blkSz,0);neiInG.resize(blkSz);
                 plex.resize(blkSz);exclStack.resize(blkSz);
                 cand1.resize(blkSz);cand2.resize(blkSz);excl.resize(blkSz);exclBK.resize(blkSz);
-                Graph subg=buildSubgraph(peelG,blk,left,inBlk,inLeft,hopSz,visited,commonMtx);
+                UpdateRows updateRows(blkSz); // finalized here; lives through all joins/cleanup
+                Graph subg=buildSubgraph(peelG,blk,left,inBlk,inLeft,hopSz,visited,commonMtx,updateRows);
                 if (subg.proper) buildCommonMtx(subg,blkSz,hopSz,commonMtx);
                 for (int j=0;j<subg.n;++j) {
                     neiInG[j]=subg.V[j].degreeHop;
@@ -497,7 +515,7 @@ namespace ListPlex
                 PlexEmitor emitor(blk,originalIDs);
                 KplexListor<DecomposeMaxChecker,PlexEmitor> listor(
                     subg,&maxchecker,&emitor,&plex,&cand1,&cand2,&excl,&exclBK,&exclStack,
-                    neiInP.data(),neiInG.data(),hopSz,hop2Sz,commonMtx);
+                    {neiInP.data(),0},{neiInG.data(),0},hopSz,hop2Sz,commonMtx,updateRows);
                 std::atomic<int> forkCredits(blkSz-1);
                 listor.forkCredits=workers>1 ? &forkCredits : nullptr;
                 listor.cand1ToPlex(0)->kSearch(k-1);
@@ -509,6 +527,10 @@ namespace ListPlex
                 for (int u:blk) inBlk[u]=false;
                 for (int u:left) inLeft[u]=false;
                 listor.plexToCand1();
+#ifdef P011_DIAGNOSTICS
+                if(listor.neiInP.bias!=0 || listor.neiInG.bias!=0) std::abort();
+                result.stats.merge(listor.stats);
+#endif
                 cand1.clearPrefix(blkSz);cand2.clearPrefix(blkSz);
             }
             results[stream]=result;
@@ -520,6 +542,21 @@ namespace ListPlex
             cntMaxPlex+=result.count;validblk+=result.valid;rootCount+=result.roots;
             snapshots+=result.snapshots;snapshotCapacityBytes+=result.snapshotCapacityBytes;
         }
+#ifdef P011_DIAGNOSTICS
+        MinorityStats stats;
+        for(const auto& result:results) stats.merge(result.stats);
+        printf("P011 totals: %s\n",stats.overflow ? "INVALID-overflow" : "valid");
+        printf("P011 old row entries: %llu\n",(unsigned long long)stats.oldEntries);
+        printf("P011 actual row entries: %llu\n",(unsigned long long)stats.newEntries);
+        printf("P011 updates: %llu\n",(unsigned long long)stats.updates);
+        printf("P011 forks: %llu\n",(unsigned long long)stats.forks);
+        printf("P011 P-bias forks: %llu\n",(unsigned long long)stats.pBiasForks);
+        printf("P011 G-bias forks: %llu\n",(unsigned long long)stats.gBiasForks);
+        printf("P011 view swaps: %llu\n",(unsigned long long)stats.viewSwaps);
+        printf("P011 biased view swaps: %llu\n",(unsigned long long)stats.biasedViewSwaps);
+        printf("P011 view restores: %llu\n",(unsigned long long)stats.restores);
+        if(!stats.overflow && (stats.newEntries>stats.oldEntries || stats.viewSwaps!=stats.restores)) std::abort();
+#endif
         const auto done=Clock::now();
         printf("Preprocessing time: %.6f s\n",std::chrono::duration<double>(rootsStart-searchStart).count());
         printf("Root search time: %.6f s\n",std::chrono::duration<double>(done-rootsStart).count());

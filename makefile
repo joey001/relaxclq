@@ -1,4 +1,4 @@
-.DEFAULT_GOAL := parlay-dense-frontier
+.DEFAULT_GOAL := parlay-minority-rows
 # avalible targets
 target_x86   =   x86
 target_arm   =   arm
@@ -45,19 +45,33 @@ all:
 clean:
 	 $(RM) $(OUTPUT)
 
-# P005 native Parlay root tasks. Override PARLAY_ROOT for another checkout.
-P005_PROJECT_ROOT ?= $(abspath $(dir $(firstword $(wildcard ../execution-environments.json ../../execution-environments.json))))
-PARLAY_ROOT ?= $(P005_PROJECT_ROOT)/deps/parlaylib
-P005_OUT ?= $(P005_PROJECT_ROOT)/build/p005
-P005_FLAGS ?= -O3 -DNDEBUG -march=native
-P005_SOURCES = maximal_kplex/toBin.cpp maximal_clique/util.cpp maximal_clique/set_operation.cpp maximal_clique/bitpack_maximal_clique.cpp maximum_clique/GraphClique.cpp maximum_kplex/Graph.cpp main.cpp maximal_kplex/listPlex.cpp
-P005_HEADERS = $(wildcard maximal_kplex/*.h)
-.PHONY: parlay-dense-frontier parlay-dense-frontier-emit
-parlay-dense-frontier: $(P005_OUT)/MKP
-parlay-dense-frontier-emit: $(P005_OUT)/MKP-emit
-$(P005_OUT)/MKP: $(P005_SOURCES) $(P005_HEADERS)
-	mkdir -p $(P005_OUT)
-	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET $(P005_FLAGS) -I$(PARLAY_ROOT)/include $(P005_SOURCES) -o $@
-$(P005_OUT)/MKP-emit: $(P005_SOURCES) $(P005_HEADERS)
-	mkdir -p $(P005_OUT)
-	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET -DLISTPLEX_EMIT_SOLUTIONS $(P005_FLAGS) -I$(PARLAY_ROOT)/include $(P005_SOURCES) -o $@
+# P011 outputs must be explicitly versioned; no historical build is reused.
+P011_PROJECT_ROOT ?= $(abspath ../..)
+PARLAY_ROOT ?= $(P011_PROJECT_ROOT)/deps/parlaylib
+P011_FLAGS ?= -O3 -DNDEBUG -march=native
+P011_SOURCES = maximal_kplex/toBin.cpp maximal_clique/util.cpp maximal_clique/set_operation.cpp maximal_clique/bitpack_maximal_clique.cpp maximum_clique/GraphClique.cpp maximum_kplex/Graph.cpp main.cpp maximal_kplex/listPlex.cpp
+P011_HEADERS = $(wildcard maximal_kplex/*.h)
+.PHONY: p011-output-check parlay-minority-rows parlay-minority-rows-emit parlay-minority-rows-diagnostic parlay-minority-rows-unit parlay-minority-rows-check-emit
+p011-output-check:
+	@test -n "$(P011_OUT)" || (echo 'Set P011_OUT to a fresh build/p011-<revision> directory'; exit 2)
+parlay-minority-rows: $(P011_OUT)/MKP
+parlay-minority-rows-emit: $(P011_OUT)/MKP-emit
+parlay-minority-rows-diagnostic: $(P011_OUT)/MKP-diagnostic
+parlay-minority-rows-unit: $(P011_OUT)/counts-unit
+$(P011_OUT)/MKP: $(P011_SOURCES) $(P011_HEADERS) | p011-output-check
+	mkdir -p $(P011_OUT)
+	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET $(P011_FLAGS) -I$(PARLAY_ROOT)/include $(P011_SOURCES) -o $@
+$(P011_OUT)/MKP-emit: $(P011_SOURCES) $(P011_HEADERS) | p011-output-check
+	mkdir -p $(P011_OUT)
+	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET -DLISTPLEX_EMIT_SOLUTIONS $(P011_FLAGS) -I$(PARLAY_ROOT)/include $(P011_SOURCES) -o $@
+$(P011_OUT)/MKP-diagnostic: $(P011_SOURCES) $(P011_HEADERS) | p011-output-check
+	mkdir -p $(P011_OUT)
+	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET -DP011_DIAGNOSTICS $(P011_FLAGS) -I$(PARLAY_ROOT)/include $(P011_SOURCES) -o $@
+$(P011_OUT)/counts-unit: tests/p011_counts.cpp maximal_kplex/listPlex.cpp $(P011_HEADERS) | p011-output-check
+	mkdir -p $(P011_OUT)
+	$(CXX) -std=c++17 -pthread -O1 -g -DPARLAY_ELASTIC_PARALLELISM=0 -DTARGET -msse4.2 -DP011_DIAGNOSTICS -I$(PARLAY_ROOT)/include -fsanitize=address,undefined -fno-omit-frame-pointer tests/p011_counts.cpp maximal_kplex/toBin.cpp -o $@
+
+parlay-minority-rows-check-emit: $(P011_OUT)/MKP-check-emit
+$(P011_OUT)/MKP-check-emit: maximal_kplex/toBin.cpp maximal_kplex/listPlex.cpp tests/p005_ownership_driver.cpp $(P011_HEADERS) | p011-output-check
+	mkdir -p $(P011_OUT)
+	$(CXX) -std=c++17 -pthread -DPARLAY_ELASTIC_PARALLELISM=0 -msse4.2 -DTARGET -DP011_DIAGNOSTICS -DLISTPLEX_EMIT_SOLUTIONS $(P011_FLAGS) -I. -I$(PARLAY_ROOT)/include maximal_kplex/toBin.cpp maximal_kplex/listPlex.cpp tests/p005_ownership_driver.cpp -o $@

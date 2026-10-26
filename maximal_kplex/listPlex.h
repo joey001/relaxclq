@@ -1,10 +1,10 @@
 #ifndef LISTPLEX_H
 #define LISTPLEX_H
 #if !defined(PARLAY_ELASTIC_PARALLELISM) || PARLAY_ELASTIC_PARALLELISM
-#error "P005 requires fixed native PARLAY_ELASTIC_PARALLELISM=0"
+#error "P011 requires fixed native PARLAY_ELASTIC_PARALLELISM=0"
 #endif
 #if defined(_OPENMP) || defined(OPENMP) || defined(PARLAY_OPENMP) || defined(PARLAY_CILKPLUS) || defined(PARLAY_OPENCILK) || defined(PARLAY_TBB) || defined(PARLAY_SEQUENTIAL)
-#error "P005 requires the native Parlay scheduler"
+#error "P011 requires the native Parlay scheduler"
 #endif
 #include <parlay/parallel.h>
 extern int k,lb,bd;
@@ -17,6 +17,7 @@ extern double time_limit;
 #include "timer.h"
 #include "MRandSet.h"
 #include "MStack.h"
+#include "minority_counts.h"
 #include "degeneracy.h"
 #include "graphIO.h"
 #include "sequence.h"
@@ -49,8 +50,12 @@ namespace ListPlex{
         MaximalityChecker *plexMaxChecker;
         Emitor *emitor;
         
-        int * neiInP;
-        int * const neiInG;
+        ShiftedCounts neiInP, neiInG;
+        const UpdateRows& updateRows;
+#ifdef P011_DIAGNOSTICS
+        MinorityStats stats;
+        std::vector<int> shadowP,shadowG;
+#endif
         Stack<int> * const plex;
         VtxSet * const cand1;
         VtxSet * const cand2;
@@ -64,11 +69,15 @@ namespace ListPlex{
 
         KplexListor(Graph &_subg,MaximalityChecker *_plexMaxChecker, Emitor *_emitor,
                     Stack<int> *_plex, VtxSet *_cand1, VtxSet *_cand2, VtxSet *_excl, VtxSet *_exclBK, Stack<int> *_exclStack,
-                    int *_neiInP, int *_neiInG, int _hopSz, int _hop2Sz, const vector<uint8_t>& _commonMtx)
+                    ShiftedCounts _neiInP, ShiftedCounts _neiInG, int _hopSz, int _hop2Sz, const vector<uint8_t>& _commonMtx, const UpdateRows& _updateRows)
         :subg(_subg),plexMaxChecker(_plexMaxChecker),emitor(_emitor)
         ,plex(_plex),cand1(_cand1),cand2(_cand2),excl(_excl),exclBK(_exclBK),exclStack(_exclStack)
-        ,neiInP(_neiInP),neiInG(_neiInG),hopSz(_hopSz),hop2Sz(_hop2Sz),commonMtx(_commonMtx)
+        ,neiInP(_neiInP),neiInG(_neiInG),updateRows(_updateRows),hopSz(_hopSz),hop2Sz(_hop2Sz),commonMtx(_commonMtx)
         {
+#ifdef P011_DIAGNOSTICS
+            shadowP.resize(subg.n);shadowG.resize(subg.n);
+            for(int v=0;v<subg.n;++v){shadowP[v]=neiInP[v];shadowG[v]=neiInG[v];}
+#endif
         }
 
         // A root owns at most b-1 snapshots in total. The immutable graph and
@@ -82,17 +91,29 @@ namespace ListPlex{
                         left,left-1,std::memory_order_relaxed))) {}
             }
             if (!granted) { first(*this); rest(); return; }
+#ifdef P011_DIAGNOSTICS
+            stats.add(stats.forks,1);
+            if(neiInP.bias) stats.add(stats.pBiasForks,1);
+            if(neiInG.bias) stats.add(stats.gBiasForks,1);
+#endif
             Stack<int> childPlex(*plex,subg.n),childStack(*exclStack,subg.n);
             VtxSet childCand1(*cand1,subg.n),childCand2(*cand2,subg.n),childExcl(*excl,subg.n),childBK(*exclBK,subg.n);
-            std::vector<int> childP(neiInP,neiInP+subg.n),childG(neiInG,neiInG+subg.n);
+            std::vector<int> childP(neiInP.raw,neiInP.raw+subg.n),childG(neiInG.raw,neiInG.raw+subg.n);
             MaximalityChecker checker(subg,plexMaxChecker->uni.cap);
             Emitor output(*emitor); output.count=0;
             Graph childGraph=subg;
             KplexListor child(childGraph,&checker,&output,&childPlex,&childCand1,&childCand2,
-                (excl==exclBK ? &childBK : &childExcl),&childBK,&childStack,childP.data(),childG.data(),hopSz,hop2Sz,commonMtx);
+                (excl==exclBK ? &childBK : &childExcl),&childBK,&childStack,{childP.data(),neiInP.bias},{childG.data(),neiInG.bias},hopSz,hop2Sz,commonMtx,updateRows);
             child.forkCredits=forkCredits;
+#ifdef P011_DIAGNOSTICS
+            for(int v=0;v<subg.n;++v)
+                if(child.shadowP[v]!=shadowP[v] || child.shadowG[v]!=shadowG[v]) std::abort();
+#endif
             parlay::par_do([&]{first(child);},[&]{rest();});
             emitor->count+=output.count;
+#ifdef P011_DIAGNOSTICS
+            stats.merge(child.stats);
+#endif
         }
 
         size_t getIdx(const int v1,const int v2){
@@ -104,34 +125,25 @@ namespace ListPlex{
             return commonMtx[getIdx(v1,v2)]&1;
         }
 
-        void addG(const int u){
-            for (int i = 0; i < subg.V[u].degree; i++)
-            {
-                const int nei = subg.V[u].Neighbors[i];
-                neiInG[nei]++;
+        template<int Sign> void updateCount(ShiftedCounts& counts,int u) {
+            updateRows.update<Sign>(counts,u);
+#ifdef P011_DIAGNOSTICS
+            auto& shadow=(&counts==&neiInP) ? shadowP : shadowG;
+            for(int j=0;j<subg.V[u].degree;++j) shadow[subg.V[u].Neighbors[j]]+=Sign;
+            for(int v=0;v<subg.n;++v) {
+                if(counts[v]!=shadow[v] || counts.raw[v]<-subg.n || counts.raw[v]>subg.n)
+                    std::abort();
             }
+            if(counts.bias<-subg.n || counts.bias>subg.n) std::abort();
+            stats.add(stats.updates,1);
+            stats.add(stats.oldEntries,uint64_t(subg.V[u].degree));
+            stats.add(stats.newEntries,uint64_t(updateRows.length(u)));
+#endif
         }
-        void subG(const int u){
-            for (int i = 0; i < subg.V[u].degree; i++)
-            {
-                const int nei = subg.V[u].Neighbors[i];
-                neiInG[nei]--;
-            }
-        }
-        void addP(const int u){
-            for (int i = 0; i < subg.V[u].degree; i++)
-            {
-                const int nei = subg.V[u].Neighbors[i];
-                neiInP[nei]++;
-            }
-        }        
-        void subP(const int u){
-            for (int i = 0; i < subg.V[u].degree; i++)
-            {
-                const int nei = subg.V[u].Neighbors[i];
-                neiInP[nei]--;
-            }
-        }
+        void addG(int u) { updateCount<1>(neiInG,u); }
+        void subG(int u) { updateCount<-1>(neiInG,u); }
+        void addP(int u) { updateCount<1>(neiInP,u); }
+        void subP(int u) { updateCount<-1>(neiInP,u); }
 
         KplexListor* cand1ToPlex(const int v)
         {
@@ -419,8 +431,13 @@ namespace ListPlex{
         {
             memcpy(plex->members + plex->sz, cand1->members, cand1->sz * sizeof(int));
             plex->sz += cand1->sz;
-            int *tmp = neiInP;
+            const ShiftedCounts tmp = neiInP;
             neiInP = neiInG;
+#ifdef P011_DIAGNOSTICS
+            stats.add(stats.viewSwaps,1);
+            if(neiInP.bias) stats.add(stats.biasedViewSwaps,1);
+            for(int v=0;v<subg.n;++v) if(neiInP[v]!=shadowG[v]) std::abort();
+#endif
             //assume plex+cand as a plex
 
             bool flag = true;
@@ -438,6 +455,10 @@ namespace ListPlex{
             }
             plex->sz -= cand1->sz;
             neiInP = tmp;
+#ifdef P011_DIAGNOSTICS
+            for(int v=0;v<subg.n;++v) if(neiInP[v]!=shadowP[v]) std::abort();
+            stats.add(stats.restores,1);
+#endif
         }
 
         void branchInCandBase(const int pivot)
