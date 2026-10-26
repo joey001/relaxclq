@@ -188,3 +188,410 @@ The primary project is `/home/joey/k-plex-rethinki-ubuntu`, and its canonical al
 The 19-call smoke, 6,702 exact-set oracle/reference/candidate checks and 38 boundary/CLI checks initially passed, but the stronger ASan+UBSan gate found inherited signed overflow in `sequence::sumFlagsSerial` on K4100. Its packed `bool*`-to-`int*` reinterpretation also violates strict aliasing. Performance admission was denied. An isolated candidate engineering repair, commit `0c6a5eacedf10b7ed1185fe28e93e888199ff433`, replaces that branch with a direct Boolean sum: still Theta(n) work/span and O(1) auxiliary space, without changing enumeration logic.
 
 The original frozen archive and reference binaries remain immutable. Before any timing, the comparison plan was amended to independently build a **safe-helper reference/control** from the original frozen source plus only this helper repair. This controls for the engineering fix: both measured candidate and measured legacy OpenMP control use defined Boolean counting. Preserve the raw historical reference for provenance and oracle comparisons; do not relabel it as sanitizer-clean. Candidate binaries and correctness gates are being rebuilt/rerun, with targeted flag patterns and boundary lengths. The new control archive/hash and final results remain pending.
+
+### P010 - Earned-work admission with bounded live snapshots (2026-10-26)
+
+**Preregistration/status:** design reviewed by two explicitly delegated
+`gpt-6-astra`/max agents; implementation assigned to `gpt-6.1-sol`.
+Pending implementation and evidence, not accepted. Dedicated branch:
+`technique/p010-earned-work-forks`, new checkout `../worktrees/p010`.
+Exact prerequisite base **1ace08d901d0f0bf93514af88cf5a473284e18e2**
+(P005; algorithm commit d066514), itself still pending, not an accepted mainline
+optimization. Its native dense root streams and compact strict-joined snapshots
+are required scaffolding. Mainline armAndX86 and both immutable references remain
+unchanged. Attribute P010's incremental effects against this P005 baseline as well
+as reporting end-to-end comparisons with the safe reference and pristine authors.
+
+**Paper grounding.** Read Dhulipala, Blelloch and Shun,
+[Theoretically Efficient Parallel Graph Algorithms Can Be Fast and Scalable](https://arxiv.org/abs/1805.05208),
+arXiv v4 (21 August 2019), sections 3 and 6. Sections 6.1/6.2 motivate accounting
+for contention and memory traffic, and using useful work to amortize parallel
+organization. Algorithm 18 logically blocks traversal work and packs live output;
+it is not a k-plex search algorithm. The earned-work rule below is our proposed
+adaptation of work-efficiency discipline, not an algorithm or theorem attributed
+to the paper. Do not transfer its traversal bounds or measured speedups to enumeration.
+
+**Single hypothesis.** P005/P006 total per-root creation budgets may spend copies
+on cheap early branches and cannot renew after joins. Charge each new admission
+attempt to actual completed search work, and cap simultaneously live copies
+instead of total lifetime creations. This may avoid early cheap copies and allow
+later work to expose parallelism. It need not outperform either existing strategy:
+ancestor-held permits can still serialize a deep heavy continuation, and expensive
+past work does not predict useful work in the next sibling. No new pivot, pruning,
+branch partition, matrix construction, root schedule, runtime or graph-specific
+threshold is part of this experiment.
+
+**Precise admission rule.** For a root with b current block vertices and l left
+vertices, fix the structural threshold in 32-bit-word equivalents:
+`F = 1 + 12*b + 2*l + 4*(floor(b/32)+1) + (floor(l/32)+1)`.
+This is Theta(1+b+l), derived from compact backing capacities plus constant
+objects; it is not an exact machine-instruction count. Each logical state starts
+with zero private credit. Only after a complete existing addG/subG/addP/subP
+neighbor-update loop, add the actually traversed degree, saturating at F without
+overflow. Never credit copying, initialization, comparisons skipped by early exit,
+child work, estimated future work or inherited credit. Undo loops count only when
+they actually execute. Backtracking does not restore a historical credit value.
+At an existing canonical fork site, insufficient credit falls back to the existing
+serial first/rest path. Otherwise set credit to zero BEFORE attempting admission,
+even when admission fails. A successful child starts at zero; the parent remains
+zero and thereafter earns only its own executed work. Never merge child credit.
+For P1 disable admission/accounting via a null pool; the conditional checks still
+have measurable cost and are not claimed to be free.
+
+One process-global pool, outside all root callbacks, permits at most C=P-1 admitted
+live clones. One relaxed fetch-add reserves a tentative slot; old>=C immediately
+rolls it back with fetch-sub and uses the serial fallback. No retry, wait, spin or
+custom scheduler is added. The counter includes in-flight failed reservations and
+can temporarily exceed C; its type must safely represent C+P. A noncopyable RAII
+guard is created before any clone storage and destroyed after all clone members,
+including the strict join and output merge. The pool lives through all root joins.
+Matrices/graph remain shared read-only; complete compact member suffixes, position
+arrays, bitmaps, counts, left checker scratch and exclusion aliasing remain private
+as in P005. Cloning historical capacities, TLS borrowing and early permit return
+are forbidden; the existing root scratch reuse remains unchanged.
+The strict-join lifetime argument concerns normal completion. The pinned native
+Parlay pardo is not an exception-safe join: exceptions during dispatched search
+are fatal, not a caught-and-resumed or completed-result path. RAII can release a
+reservation on pre-dispatch allocation failure, but does not make post-dispatch
+unwinding safe. Do not add catch-and-continue behavior or modify the scheduler.
+
+**Correctness and accounting.** Admission changes only whether an existing
+complete/disjoint first/rest partition runs serially or in independent joined
+states. Preserve restoration and global maximality checks, exact 64-bit counting,
+complete output and duplicate freedom. Let U_i be actual executed iterations of
+the four metered loops in root i, A_i its funded attempts, and K_i successful copies.
+Disjoint private-credit intervals imply `K_i <= A_i` and `A_i*F_i <= U_i`.
+Thus all copy/construction/destruction work is
+`O(sum_i K_i*(1+b_i+l_i)) = O(sum_i U_i)`, and funded synchronization is
+`O(sum_i A_i)`. Meter calls, including degree-zero calls, and unfunded branch tests
+add `O(J + N_branch)` for existing update-call and fork-site counts. They must not
+be omitted. This is an upper bound under a common search model; U_i is actual
+candidate work, not the measured P1 work or proof of per-input reference dominance.
+P005's existing algorithmic/common-model bound remains a prerequisite to review.
+Unit-cost atomic accounting is not a promise of constant cache-coherence latency.
+More explicitly, with B the inherited preprocessing work, N the peeled vertex
+count, Q the inherited stream count, and L_i actual local construction/search
+work excluding snapshot/admission overhead, total work is
+`O(B+P+N+Q*N+sum L_i+J+N_branch+sum A_i*F_i)`
+`= O(B+P+N+Q*N+sum L_i)`.
+The metered iterations and original call/site costs are contained in L_i;
+`Q*N <= N+sum deg(v)^2` is inherited from P005. This common-model accounting
+does not identify L_i with a measured serial execution.
+
+**Span/space.** Use the actual weighted DAG: granted sites pay reservation and
+copy, then max(child,rest), join/merge/destruction; denied sites execute the serial
+sum. Add the existing preprocessing, callback dispatch/root assignment and root
+construction spans. Model global atomic serialization in the actual augmented
+weighted event DAG: for consecutive pool operations a_j, finish(a_j) is its cost
+plus max(finish(local predecessor), finish(a_(j-1))). Other vertices retain their
+ordinary local/fork/join dependencies. Cross-root edges can concatenate long
+computation segments, so adding only O(sum_i A_i) to a stream-span bound is NOT
+justified. Use the longest augmented path, conservatively bounded by total work;
+no logarithmic contention, balanced search or universal span improvement is
+claimed. At most Q stream-owned base roots and
+C admitted clone states are live, including suspended ancestors. Sum historical
+stream scratch/matrix capacities and the base-root recovery stacks, then add at
+most `O(C * max_i(1+b_i+l_i+b_i*k))` for clone state/recovery along with native
+runtime metadata. Do not replace all live state by P arrays or ignore retained
+capacity. The counter's transient excess consists of reservations without clones,
+not additional snapshots. Native nonelastic idle CPU remains visible in logs.
+
+**Predeclared validation and decisions.** Phase 1 starts with the canonical
+19-invocation smoke, then the fixed 2234-case independent oracle/reference plan,
+relevant boundaries, compact suffix/exclusion-alias regressions, ASan/UBSan and
+representative P2/8/16/20 exact-set repetitions. Add targeted admission tests for
+zero/overflow-safe credit, failed-attempt consumption, after-join renewal, nested
+ancestor-held fallback, global cap and storage-before-permit destruction. Abstract
+event fixtures demonstrate admission properties only, not realizable graph
+speedups. Real graph output still needs independent oracle checks. Diagnostics
+must show real forks and conservation; release timing must not include extra
+shared diagnostic counters. P1/P>1 use the same fixed-native-runtime executable.
+Phase 2 uses jazz(3,10), ca-GrQc(3,10), jazz(4,12). Phase 3 uses the fixed
+Enron/Wiki/DBLP development cases and all difficult core/held-out cases; no held-out
+tuning. Each timing checks input identity/count, P1/2/4/8/16/20 and at least three
+interleaved repetitions. No extra mandatory standalone sanity phase. Compare
+absolute wall, P1 cost, same-binary scaling, CPU and RSS; diagnose copy/admission
+traffic separately. Use temporally adjacent controls for disputed changes.
+Repeatable regression, excessive copying/contention, invalid bounds or needless
+complexity can reject early; missing tests are pending, never success or rejection.
+The development prediction is approximately unchanged P1 time versus P005
+(conditional-accounting overhead must be measured), removal of P005's confirmed
+approximately 4.1% Enron P4 overhead if early copies caused it, and a reproducible
+P8/16/20 wall improvement on at least Enron or DBLP versus P005. These are
+falsifiable hypotheses, not observations. There is no matrix-speedup prediction
+for Wiki. Insufficient metered work, global-gate serialization or ancestor-held
+permits may eliminate all benefit. Fewer copies alone does not meet the existing
+objective of materially exceeding both authors' same-binary scaling.
+Existing canonical time/memory limits apply; freeze a concrete finite batch plan
+and current resource grant before launch rather than inheriting an unlimited run.
+
+**Execution hold at preregistration.** Native Ubuntu dev=test was verified again.
+The old eight-solver study still has 739/864 saved records without terminal markers;
+its existing performance lock is held (inode 18779599). Host PID/tmux visibility is
+unavailable. Host-terminal read-only status has been requested. No new compiler,
+solver, benchmark, count resume, lock replacement or process signal is authorized
+by this record while that resource conflict remains unresolved. Source work and
+static proof review can proceed in the separate P010 branch. After completed tests
+or justified early rejection, apply the current lean cleanup and authorized normal
+technique-branch commit/push rules; no automatic mainline merge or publication.
+
+
+#### P010 source-only implementation checkpoint
+
+Sol 6.1 has prepared the initial implementation in the registered branch/worktree.
+Two Astra-max source reviews found no outstanding blocking issue in credit
+accounting, the process-global permit pool, normal-completion ownership or the
+unchanged branch partitions. These are static findings, not correctness admission.
+The original three first/rest lambdas, restoration, exclusion alias and global
+maximality checks are unchanged from the explicit P005 prerequisite. Release adds
+only the admission policy and private metering, without diagnostic shared counters.
+The separate diagnostic build checks funded work against actual metered work,
+reservation return, after-join grants and overflow-invalid statistics. The existing
+root callback comment now explicitly permits suspension/helping while ownership
+remains callback-local. Future builds require an explicit version output directory;
+the reproduction instructions reject existing paths and hold the existing lock
+without creating/replacing it.
+
+**Executed validation:** source/diff review and `git diff --check` only. Compilation,
+abstract admission unit, independent graph oracle, all sanitizers, real concurrent
+reservation/renewal coverage and both performance phases are **UNRUN**. The written
+admission unit is a sequential abstract model, not evidence of real concurrent
+interleavings or graph speedup. Actual branch-site/exclusion-alias and after-join
+renewal coverage remain to be demonstrated on graphs. No candidate binaries or
+run data were produced, so no test intermediates required cleanup. No commit,
+push, mainline merge, reference edit or paused-job action occurred. The mainline
+algorithm/build sources remain unchanged. Current status is **source prepared,
+pending correctness; execution blocked by the unresolved existing test window**.
+The host-state request remains unanswered at this checkpoint; no inference of
+termination follows from unavailable PID/tmux observation.
+
+Draft file identities (uncommitted source, not binary/build admission):
+
+| File in P010 checkout | SHA-256 |
+| --- | --- |
+| `makefile` | `7083745300570cea058b7fc63b20533799056000bac1a90fb3e64ca1152727e7` |
+| `maximal_kplex/listPlex.cpp` | `0f25fd3a545de9680a7fd9391dedffef4bcf3e77c38a2b607a5bb87020753f21` |
+| `maximal_kplex/listPlex.h` | `56600daf5eb5031db3ae5cced4610c4afe6463ecbf6c419f6aea037387bd0a9f` |
+| `maximal_kplex/p010_fork_admission.h` | `885c2db8f6b3725509966032c481124396e599a1660b8eac837f6f02e474bf4b` |
+| `tests/p010_admission.cpp` | `bcc8176a9e4b556df325350076fd449fc3823977a973a61ff4d7adbb73a2df76` |
+| `tests/P010-REPRODUCE.md` | `8afca310cd6ad9e00ecb9ee44f1bc4672c41a4b09f4370d4e5faf092d2f7ead0` |
+
+
+#### User-authorized retirement of old run state (2026-10-26)
+
+The user cannot supply host lslocks/tmux/ps output and explicitly authorized
+clearing the previous run state. The earlier request for that output is withdrawn;
+do not request it again. The eight-solver development study and old safe-reference
+count job have been removed from the active `jobs` registry and retained as
+`retired_jobs` with `abandoned_by_user`, no automatic resume and termination
+explicitly unconfirmed. The comparison's last 739/864 saved records and established
+Wiki/Epinions/DBLP reference counts remain historical evidence. The incomplete
+study is not a pass, an algorithm rejection or an obligation to finish before
+selecting another experiment. Old handoff/entry documentation now marks the resume
+procedure superseded by retirement. No result files or source/reference identities
+were rewritten, and no active output directories were moved under a possible writer.
+
+Administrative cleanup is complete; physical process cleanup is NOT complete.
+A fresh nonblocking probe still finds the original lock inode **18779599** held.
+Only sandbox-local PIDs are visible. The attempted host-scope read-only identity
+check was rejected by the execution permission policy because sandbox escalation
+is disabled; no host command ran and no process signal was sent. Existing user
+authorization covers stopping these old tasks once their identities can be
+verified through an execution environment with host-process access. Do not treat
+missing sandbox PIDs as exited or signal a reused historical PID. Do not bypass
+that permission denial through self-SSH, namespace entry or a substitute lock.
+The cooperative pause flag stays in place to avoid unintentionally resuming the
+old count while termination is unverified. Neither old task is a resume target.
+
+The status tool now separately reports active jobs, retired jobs with unresolved
+process cleanup, and a nonblocking read-only-open probe of the existing lock.
+Lightweight checks confirmed: zero active/two retired jobs, no fabricated exit,
+held/free/missing-lock reporting, preservation of the lock inode and no creation
+of a missing lock. Documentation and JSON were updated consistently. No compiler,
+solver or benchmark launched. P010 still has no executable correctness/performance
+evidence; its remaining execution blocker is host process control and the held OS
+lock, not missing permission from the user or a request for user-provided output.
+
+
+#### Old process cleanup completed on the host (2026-10-26)
+
+With host access enabled and explicit user authorization to clear blocking
+processes/locks, current command lines and /proc start ticks were checked before
+opening pidfds. The actual lock owner was stopped comparison controller PID145695
+(start 193453417), not an orphaned lock file. Old Pokec time/solver PIDs66392/66393
+were also stopped with their recorded start 193323068. Controllers were quiesced
+before termination to prevent launching further work. TERM and CONT terminated
+all eight verified old task processes: 145693,145695,4149628,4149630,4149631,
+4150658,66392,66393. Pidfd exit readiness and a subsequent /proc inspection confirmed
+termination; no KILL escalation was needed. No unrelated Codex, desktop or service
+process was signalled. Both old tmux sessions ended naturally. Their shell wrappers
+wrote exit143; these are cancellation outcomes, not completed experiments.
+
+A nonblocking exclusive lock acquisition succeeded on the ORIGINAL inode
+18779599, which was then released. The lock file was neither removed nor replaced.
+The stale cooperative pause flag was removed only after all related processes
+were verified terminated; its prior hash is recorded in the handoff registry.
+Partial comparison records, independent verified reference counts, archives,
+source and P010 draft remain intact. The active registry remains empty and both
+retired jobs now explicitly have termination_confirmed=true. Current config,
+entry/handoff documents and status output reflect actual resource clearance rather
+than the superseded permission blocker. Future jobs must still acquire the same
+lock and probe current resource limits. P010 is ready to begin correctness testing;
+this process cleanup itself does not compile or validate any algorithm.
+
+
+#### P010 R1 execution grant and timing preregistration (2026-10-26)
+
+A new explicit gpt-6.1-sol/high implementation session, with verified host process
+and tmux access, owns the testing window; the old restricted Sol session launched
+no build or solver. Fresh paths are `../build/p010-r1-20261026-1323` and
+`../runs/p010-r1-20261026-1323`, tmux `p010_r1_correctness`. Stage 1 has a finite
+4-hour ceiling, one compiler/solver at a time, smoke P4 and at most 20 workers,
+and batch memory <=160 GiB and <=70% current available memory. Host observation
+showed 24 allowed CPUs, no CPU quota, about 241 GiB available and a free original
+coordination lock. Every execution component retains the same lock. The initial
+sequence is serial release/emitter/diagnostic build and admission/compact units,
+then canonical 19-call smoke, 2234 oracle cases, boundaries and 240 high-worker
+exact-set repetitions, followed by scoped sanitizer/real-fork coverage. Immutable
+reference evidence may be reused only after identity checks. Before the release
+freeze, diagnostic-only counters distinguish grants at the three canonical fork
+sites and the exclusion alias; no release algorithm parameter changes were made.
+Builds/checks in progress are not a correctness pass or performance grant.
+
+Before any small-graph timings, extend the initial two-way P010/P005 screen with
+the immutable safe ListPlex control: three solvers x three fixed small cases x
+P1/2/4/8/16/20 x three repetitions = **162 timed invocations**, each checking its
+answer. Safe P1 supplies the serial reference; safe P>1 is explicitly the historical
+OpenMP same-worker comparator, not a native-Parlay baseline. P005 is an unaccepted
+prerequisite comparator, not a substitute for the safe control. Shuffle blocks of
+(case,worker,repetition) with a fixed seed, and balance/rotate solver order INSIDE
+each adjacent block, rather than scattering each comparison across the whole
+batch. This addresses the previously observed temporal variation without dropping
+any measurement. Preserve the existing frozen drivers/results. Proposed case
+limit120s, batch limit14400s, one process and 48GiB per-process memory subject to
+the live 70% bound. A concrete hash-pinned plan and fresh exclusive grant are still
+required after stage1 passes. Adjacent confirmation of a disputed regression can
+reject early; no new percentage tolerance or held-out tuning is introduced.
+
+
+#### P010 R1 correctness admission
+
+The complete planned first phase passed and an independent Astra-max audit
+re-read the recorded source/binary/input identities and raw evidence. There are
+**7090 logical checks = 4856 fresh invocations + 2234 identity-verified reference
+reuses**, plus the admission and compact snapshot units under ASan/UBSan/leak
+options. Components: smoke19, oracle6702 (2234 graphs x reference/P1/P4),
+boundaries38, P2/8/16/20 exact-set stress240, diagnostic44, sanitizer47. No count,
+set, duplicate or worker mismatch was found. Reported peak RSS reached293952KiB.
+The initial controller exited1 because the standalone compact-unit compile command
+omitted the x86 TARGET/SSE flags. This produced no test binary and did not change
+algorithm sources; the already-built release/emitter/diagnostic identities were
+retained. A fresh compactfix output passed, followed by separate successful
+resume/extra controllers (both exit0). Failed compilation evidence is retained.
+
+Release SHA256: **f592cd7305b15bbed0bdbba739674bc2384acaecde904789872d706bf35675d2**.
+Sanitizer+diagnostic+emitter SHA256:
+**bca0a2f89bd749839d93d27006579e1994b121e0d4af01ad7cffc5dcc1d595ce**.
+Gate `../runs/p010-r1-20261026-1323/correctness-gate.json`, SHA256
+**c325701b14f38e350d44cceceeeb46143231097802af3db966a6ebde65b78723**,
+pins the source snapshot, flags and evidence. In sanitizer exact-set runs the
+three canonical sites granted23/633/55 snapshots, alias grants495 and after-join
+renewal grants562;919 funded attempts=711 grants+208 denials. All calls ended with
+zero reservations and funded work no greater than actual metered work.
+The single fixed `random-12-0.5-0-k3-q5` P4 input (SHA d0b1359e...40e684)
+independently yields102 exact sets and covers sites7/2/6, alias7 and renewal10.
+This establishes the requested coverage without further fixture expansion.
+TSan was not rerun for R1 because of the recorded host incompatibility; it is NOT
+a pass or proof of race freedom. Native high-worker exact-set tests did run.
+
+Astra found the evidence sufficient for the preregistered small-graph performance
+phase. This is correctness eligibility only: no performance success, universal
+speedup or technique acceptance is implied. Original hypothesis, common-model
+work bound and conservative augmented-DAG span limitations remain in force.
+
+
+#### P010 R1 small-graph exclusive timing grant
+
+Final plan `../runs/p010-r1-small-plan-20261026-1333/plan.final.json`, SHA256
+**b99a42dbf921b2175f9de5a17987d836ac141050f2614cff767d8776b008a01e**,
+grants the preregistered162-call adjacent-block screen after independent Astra
+correctness admission. The new frozen measurement driver SHA256 is
+**96b80fd33a5c96e7ff9fb0628f4e5c822717aeb276948ae74e29857b2aa30f54**;
+old frozen drivers remain unchanged. Each case/worker cell rotates solver position
+across its three repetitions. Per-process memory is tightened to8GiB for these
+small inputs (still subject to160GiB/70%available), timeout120s, batch14400s.
+Fresh output `../runs/p010-r1-small-20261026-1333`, tmux `p010_r1_small`;
+other agents are read-only with no competing compilation or solver. Both native
+candidates retain their admitted same-binary P1/P>1 identities, and safe P>1 is
+labelled the historical OpenMP control. Completion, counts and stable paired
+comparisons are required before any speed claim. No difficult-core timing is
+implied by this small-graph grant.
+
+
+#### P010 R1 decision: rejected after small-graph performance
+
+All162 adjacent-block timing invocations completed with verified answers, source/
+binary/input identities, workers and GNU CPU/RSS records; controller exit0,
+wall145.449742s. Astra independently audited raw records, all54 blocks, balanced
+positions and the paired analysis. `measurements.json` SHA256 is
+**5df60922bef65399c4d6b1d6e3dd433b3211ec488fab7d742049c6e77540c65d**.
+No samples were discarded or retrospectively normalized. GrQc's10-30ms observations
+are startup/noise dominated and are not used to reject the technique.
+
+| Case/workers | P010/P005 adjacent wall ratios (three repetitions) | Observation |
+| --- | --- | --- |
+| jazz(4,12),P20 | 1.3648 / 1.3206 / 1.4122 | Repeated parallel regression across all positions |
+| jazz(4,12),P1 | 1.0313 / 1.0280 / 1.0385 | Repeated single-worker regression on7.4-7.8s calls |
+| jazz(3,10),P16 | 1.1582 / 1.3150 / 1.3961 | Additional repeated parallel regression |
+
+For jazz(4,12), P010/P005 P20 adjacent CPU ratios are1.4808/1.2894/1.3215;
+P010/SafeOpenMP P20 wall ratios are1.3289/1.2500/1.0772. P1 wall relative to safe
+is1.0548/1.0484/1.0430. Thus the failure is not inferred solely from speedup
+normalization or comparison with an already-slow prerequisite. Median P1/P20 wall
+seconds are P0107.709296/0.420230, P0057.455806/0.307917 and safe7.366939/0.363594;
+same-binary self-speedups are18.35x/24.21x/20.26x respectively. P20 median total CPU
+seconds are7.73/5.22/6.16 and RSS5740/8064/4800KiB. Smaller candidate RSS does not
+compensate for the observed time regression, nor is RSS measured copied bytes.
+Ratios of medians and medians of adjacent paired ratios are distinct statistics;
+use the preserved per-pair data for the repeated-regression finding.
+
+**Decision: rejected.** The original repeatable-regression condition is met;
+no post-hoc tolerance is introduced. Correctness and the conservative common-model
+work/space argument survived, but paid-copy admission with a reusable global live
+cap did not deliver the required practical non-regression. The measurements do
+not isolate copying, metering, atomics or code generation as the causal bottleneck.
+Do not claim any one cause without a separate experiment. No graph-specific tuning
+or threshold revision is made inside P010. Stage3 large/core/held-out performance
+is **UNRUN by justified early rejection**, not passed, failed or missing-case
+acceptance. No further confirmation is needed to close this clearly negative
+trial. Preserve the tested source and compact audited evidence, then perform the
+already-authorized scoped cleanup and normal technique-branch publication; the
+mainline algorithm remains unchanged and no candidate is merged.
+
+
+#### P010 R1 lean cleanup and publication preparation
+
+All P010 controllers exited, no P010 tmux/solver/compiler remains, and the original
+lock inode18779599 was independently acquirable. The rejection and identities are
+recorded above. A dependency check found no pending job using the following fresh
+P010-only intermediates. Before removal, `../runs/p010-r1-20261026-1323/cleanup-manifest.json`
+recorded exact paths/hashes/sizes and verified duplicate traces byte-for-byte.
+Remove two deterministic K4100 fixture binaries (134480024 bytes total), three
+rebuildable admission/compact/sanitizer test binaries, and6702 copied reference
+stdout/stderr/resource files (2234 verified reuses). The original protected P005
+reference traces remain at each record's `reused_from`; no control is rebuilt or
+deleted. Retain all fresh invocation raw evidence, per-run/checks rows, independent
+small-graph fixtures/expected sets, gates, source snapshot/patch/identities, sanitizer
+build command/log, original compile failure and both successful exit markers.
+Retain the three small tested release/emitter/diagnostic binaries and all162
+performance records, plans and frozen driver. No shared data, other technique,
+pending candidate or uncertain process file is removed. The manifest records the
+actual removal completion after these checks; generated complete fixtures can be
+recreated from the retained canonical generator and pinned SHA.
+
+Cleanup completed: **6707 artifact files / 144507461 bytes** removed,
+plus only P010-created Python bytecode caches. Manifest SHA256:
+**5dc7d15b8bee6799c521b7ae2177f96cee218a21d3566238c4a25bacb502a45e**.
+The original immutable reference/archive/control paths and every fresh candidate
+raw stdout/stderr/resource record remain available. The P010 worktree and source
+are retained for the authorized same-name technique-branch publication.

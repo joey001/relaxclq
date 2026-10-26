@@ -1,10 +1,10 @@
 #ifndef LISTPLEX_H
 #define LISTPLEX_H
 #if !defined(PARLAY_ELASTIC_PARALLELISM) || PARLAY_ELASTIC_PARALLELISM
-#error "P005 requires fixed native PARLAY_ELASTIC_PARALLELISM=0"
+#error "P010 requires fixed native PARLAY_ELASTIC_PARALLELISM=0"
 #endif
 #if defined(_OPENMP) || defined(OPENMP) || defined(PARLAY_OPENMP) || defined(PARLAY_CILKPLUS) || defined(PARLAY_OPENCILK) || defined(PARLAY_TBB) || defined(PARLAY_SEQUENTIAL)
-#error "P005 requires the native Parlay scheduler"
+#error "P010 requires the native Parlay scheduler"
 #endif
 #include <parlay/parallel.h>
 extern int k,lb,bd;
@@ -17,6 +17,7 @@ extern double time_limit;
 #include "timer.h"
 #include "MRandSet.h"
 #include "MStack.h"
+#include "p010_fork_admission.h"
 #include "degeneracy.h"
 #include "graphIO.h"
 #include "sequence.h"
@@ -60,7 +61,7 @@ namespace ListPlex{
         const int hopSz, hop2Sz;
         const vector<uint8_t>& commonMtx;
         vector<std::pair<int,int> > vp;
-        std::atomic<int>* forkCredits=nullptr;
+        EarnedWork earned;
 
         KplexListor(Graph &_subg,MaximalityChecker *_plexMaxChecker, Emitor *_emitor,
                     Stack<int> *_plex, VtxSet *_cand1, VtxSet *_cand2, VtxSet *_excl, VtxSet *_exclBK, Stack<int> *_exclStack,
@@ -71,17 +72,21 @@ namespace ListPlex{
         {
         }
 
-        // A root owns at most b-1 snapshots in total. The immutable graph and
-        // pair matrix are shared; no worker/TLS state is borrowed across par_do.
-        template<class First, class Rest>
+        // Preserve the existing partition; only completed local work can pay
+        // for an independent joined snapshot. Credit is never restored/merged.
+        template<int Site, class First, class Rest>
         void forkBranch(First first, Rest rest) {
-            bool granted=false;
-            if (forkCredits && parlay::num_workers()>1) {
-                int left=forkCredits->load(std::memory_order_relaxed);
-                while (left>0 && !(granted=forkCredits->compare_exchange_strong(
-                        left,left-1,std::memory_order_relaxed))) {}
-            }
-            if (!granted) { first(*this); rest(); return; }
+            if (!earned.consumeAttempt()) { first(*this); rest(); return; }
+            ForkPermit permit(earned.pool, earned.threshold);
+            if (!permit) { first(*this); rest(); return; }
+#ifdef P010_DIAGNOSTICS
+            static_assert(Site>=0 && Site<3, "P010 diagnostic fork site");
+            earned.pool->siteGrants[Site].fetch_add(1,std::memory_order_relaxed);
+            if (excl==exclBK)
+                earned.pool->exclusionAliasGrants.fetch_add(1,std::memory_order_relaxed);
+            if (earned.hasJoinedFork)
+                earned.pool->renewals.fetch_add(1,std::memory_order_relaxed);
+#endif
             Stack<int> childPlex(*plex,subg.n),childStack(*exclStack,subg.n);
             VtxSet childCand1(*cand1,subg.n),childCand2(*cand2,subg.n),childExcl(*excl,subg.n),childBK(*exclBK,subg.n);
             std::vector<int> childP(neiInP,neiInP+subg.n),childG(neiInG,neiInG+subg.n);
@@ -90,9 +95,13 @@ namespace ListPlex{
             Graph childGraph=subg;
             KplexListor child(childGraph,&checker,&output,&childPlex,&childCand1,&childCand2,
                 (excl==exclBK ? &childBK : &childExcl),&childBK,&childStack,childP.data(),childG.data(),hopSz,hop2Sz,commonMtx);
-            child.forkCredits=forkCredits;
+            child.earned.pool=earned.pool;
+            child.earned.threshold=earned.threshold; // child credit starts at zero
             parlay::par_do([&]{first(child);},[&]{rest();});
             emitor->count+=output.count;
+#ifdef P010_DIAGNOSTICS
+            earned.hasJoinedFork=true;
+#endif
         }
 
         size_t getIdx(const int v1,const int v2){
@@ -110,6 +119,7 @@ namespace ListPlex{
                 const int nei = subg.V[u].Neighbors[i];
                 neiInG[nei]++;
             }
+            earned.earn(uint64_t(subg.V[u].degree));
         }
         void subG(const int u){
             for (int i = 0; i < subg.V[u].degree; i++)
@@ -117,6 +127,7 @@ namespace ListPlex{
                 const int nei = subg.V[u].Neighbors[i];
                 neiInG[nei]--;
             }
+            earned.earn(uint64_t(subg.V[u].degree));
         }
         void addP(const int u){
             for (int i = 0; i < subg.V[u].degree; i++)
@@ -124,6 +135,7 @@ namespace ListPlex{
                 const int nei = subg.V[u].Neighbors[i];
                 neiInP[nei]++;
             }
+            earned.earn(uint64_t(subg.V[u].degree));
         }        
         void subP(const int u){
             for (int i = 0; i < subg.V[u].degree; i++)
@@ -131,6 +143,7 @@ namespace ListPlex{
                 const int nei = subg.V[u].Neighbors[i];
                 neiInP[nei]--;
             }
+            earned.earn(uint64_t(subg.V[u].degree));
         }
 
         KplexListor* cand1ToPlex(const int v)
@@ -366,7 +379,7 @@ namespace ListPlex{
             if(k>2 && bound12()) return;
             // Partition exactly as serial kSearch: exclude the current back
             // vertex, versus the ordered include-prefix branches below.
-            forkBranch([&](KplexListor& child) {
+            forkBranch<0>([&](KplexListor& child) {
                 const int v=child.cand2BackToExclInc();
                 child.kSearch(res);
                 child.exclToCand2Inc(v);
@@ -444,7 +457,7 @@ namespace ListPlex{
         {
             // Existing include/exclude partition; each half has a complete,
             // independent exclusion state and global-maximality checker.
-            forkBranch([&](KplexListor& child) {
+            forkBranch<1>([&](KplexListor& child) {
                 int recCand1,recExcl;
                 child.cand1ToPlex(pivot)->updateCand1Fake(recCand1,pivot)
                     ->updateExcl(recExcl,pivot)->listByCase();
@@ -477,7 +490,7 @@ namespace ListPlex{
             }
             assert(sz == tot);
             //There are at most tol+1 branches.
-            forkBranch([&](KplexListor& child) {
+            forkBranch<2>([&](KplexListor& child) {
                 const int excluded=addList[0];
                 child.cand1ToExcl(excluded)->listByCase();
                 child.exclToCand1(excluded);
@@ -646,7 +659,7 @@ namespace ListPlex{
                 checkAsMaxPlex();   //P+C is a k-plex
                 return;
             }
-            // P005 exposes a bounded strict frontier inside each independent root.
+            // P010 admits only paid compact snapshots under a process-global cap.
             if (minneiPlex==minnei) branchInPlexBase(pivot);
             else branchInCandBase(pivot);
         }

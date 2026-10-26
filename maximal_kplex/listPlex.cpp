@@ -424,9 +424,9 @@ namespace ListPlex
         }
     }
 
-    // P004: serial preprocessing, then reusable logical root streams.
-    // Root callbacks never yield or create nested parallel work. Every mutable
-    // search object is callback-owned; shared graph/order vectors are read-only.
+    // Serial preprocessing, then callback-owned reusable logical root streams.
+    // Nested forks may suspend/help: each root strictly joins all descendants
+    // before its callback reuses scratch. Shared graph/order vectors are read-only.
     void decomposableSearch(const Graph &g) {
         searchStart=Clock::now();
         std::vector<int> dpos(g.n,INT_MAX),dseq(g.n),resNei(g.n),originalIDs;
@@ -458,7 +458,8 @@ namespace ListPlex
             degreeWork+=std::min(d*d,budget-degreeWork);
         }
         const size_t streams=pn ? std::min(cap,size_t(1+degreeWork/uint64_t(pn))) : 0;
-        struct Result { unsigned long long count=0; size_t valid=0,roots=0; unsigned long long snapshots=0,snapshotCapacityBytes=0; };
+        ForkPool forkPool(workers-1); // one pool lives through every root join
+        struct Result { unsigned long long count=0; size_t valid=0,roots=0; };
         std::vector<Result> results(streams);
         std::atomic<size_t> next{0};
         parlay::parallel_for(0,streams,[&](size_t stream) {
@@ -498,13 +499,9 @@ namespace ListPlex
                 KplexListor<DecomposeMaxChecker,PlexEmitor> listor(
                     subg,&maxchecker,&emitor,&plex,&cand1,&cand2,&excl,&exclBK,&exclStack,
                     neiInP.data(),neiInG.data(),hopSz,hop2Sz,commonMtx);
-                std::atomic<int> forkCredits(blkSz-1);
-                listor.forkCredits=workers>1 ? &forkCredits : nullptr;
+                listor.earned.pool=workers>1 ? &forkPool : nullptr;
+                listor.earned.threshold=snapshotWords(blkSz,leftSz);
                 listor.cand1ToPlex(0)->kSearch(k-1);
-                const unsigned long long snapshots=blkSz-1-forkCredits.load(std::memory_order_relaxed);
-                result.snapshots+=snapshots;
-                result.snapshotCapacityBytes+=snapshots*(48ULL*blkSz+8ULL*leftSz+
-                    16ULL*(blkSz/32+1)+4ULL*(leftSz/32+1));
                 result.count+=emitor.count;
                 for (int u:blk) inBlk[u]=false;
                 for (int u:left) inLeft[u]=false;
@@ -515,10 +512,8 @@ namespace ListPlex
         },1);
         unsigned long long cntMaxPlex=0;
         size_t validblk=0,rootCount=0;
-        unsigned long long snapshots=0,snapshotCapacityBytes=0;
         for (const Result& result:results) {
             cntMaxPlex+=result.count;validblk+=result.valid;rootCount+=result.roots;
-            snapshots+=result.snapshots;snapshotCapacityBytes+=result.snapshotCapacityBytes;
         }
         const auto done=Clock::now();
         printf("Preprocessing time: %.6f s\n",std::chrono::duration<double>(rootsStart-searchStart).count());
@@ -529,8 +524,31 @@ namespace ListPlex
         printf("Number of %d-plex: %llu\n",k,cntMaxPlex);
         printf("Running time: %.3f s\n",std::chrono::duration<double>(done-searchStart).count());
         printf("Task Cnt: %zu\n",rootCount);
-        printf("Fork snapshots: %llu\n",snapshots);
-        printf("Snapshot base capacity bytes (cumulative): %llu\n",snapshotCapacityBytes);
+#ifdef P010_DIAGNOSTICS
+        for (int site=0;site<3;++site)
+            printf("P010 site %d grants: %llu\n",site,(unsigned long long)forkPool.siteGrants[site].load());
+        printf("P010 exclusion-alias grants: %llu\n",(unsigned long long)forkPool.exclusionAliasGrants.load());
+        printf("P010 funded attempts: %llu\n",(unsigned long long)forkPool.attempts.load());
+        printf("P010 after-join renewal grants: %llu\n",(unsigned long long)forkPool.renewals.load());
+        printf("P010 denied attempts: %llu\n",(unsigned long long)forkPool.denied.load());
+        printf("Fork snapshots: %llu\n",(unsigned long long)forkPool.snapshots.load());
+        const bool totalsOverflow=forkPool.wordTotalsOverflow.load(std::memory_order_relaxed);
+        printf("P010 word totals: %s\n",totalsOverflow ? "INVALID-overflow (raw modulo uint64 values)" : "valid");
+        printf("Snapshot capacity word equivalents (raw cumulative): %llu\n",(unsigned long long)forkPool.words.load());
+        printf("P010 metered iterations (raw cumulative): %llu\n",(unsigned long long)forkPool.meteredWords.load());
+        printf("P010 funded threshold words (raw cumulative): %llu\n",(unsigned long long)forkPool.fundedWords.load());
+        const uint64_t finalReserved=forkPool.reserved.load(std::memory_order_relaxed);
+        printf("P010 final reserved: %llu\n",(unsigned long long)finalReserved);
+        if (finalReserved!=0) {
+            fprintf(stderr,"P010 leaked reservation after all root joins\n");
+            std::abort();
+        }
+        if (!totalsOverflow && forkPool.fundedWords.load()>forkPool.meteredWords.load()) {
+            fprintf(stderr,"P010 funded work exceeds metered iterations\n");
+            std::abort();
+        }
+#endif
+        assert(forkPool.reserved.load(std::memory_order_relaxed)==0);
     }
 int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_flag,double timeLimit){
     std::string input(file_path);
