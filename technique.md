@@ -188,3 +188,502 @@ The primary project is `/home/joey/k-plex-rethinki-ubuntu`, and its canonical al
 The 19-call smoke, 6,702 exact-set oracle/reference/candidate checks and 38 boundary/CLI checks initially passed, but the stronger ASan+UBSan gate found inherited signed overflow in `sequence::sumFlagsSerial` on K4100. Its packed `bool*`-to-`int*` reinterpretation also violates strict aliasing. Performance admission was denied. An isolated candidate engineering repair, commit `0c6a5eacedf10b7ed1185fe28e93e888199ff433`, replaces that branch with a direct Boolean sum: still Theta(n) work/span and O(1) auxiliary space, without changing enumeration logic.
 
 The original frozen archive and reference binaries remain immutable. Before any timing, the comparison plan was amended to independently build a **safe-helper reference/control** from the original frozen source plus only this helper repair. This controls for the engineering fix: both measured candidate and measured legacy OpenMP control use defined Boolean counting. Preserve the raw historical reference for provenance and oracle comparisons; do not relabel it as sanitizer-clean. Candidate binaries and correctness gates are being rebuilt/rerun, with targeted flag patterns and boundary lengths. The new control archive/hash and final results remain pending.
+
+
+### P013 - Elide infeasible candidate-include branches before cloning (2026-10-26)
+
+**Status and identity.** Preregistered after two independent Astra-max actual-
+source reviews; not implemented, built or run. Reserve
+`technique/p013-infeasible-include-elision` and `../worktrees/p013`. Canonical
+mainline remains `6d035d10469fdc18a6bfcae767b1115c975432ee`. Explicit experimental
+prerequisite/base is P005 documentation commit
+`1ace08d901d0f0bf93514af88cf5a473284e18e2`, algorithm
+`d0665142925bb9ee7d1628b05b5e7ea43f9cc051`; its frozen release is
+`103ce85b8d29a1ef85ad54641bf7f7aeff2ecefd44ffeee8c1f2dcea33d1bf4d`.
+P005 remains pending, not an accepted mainline optimization. Its native joined
+frontier supplies the necessary parallel scaffold without combining P010,
+P011 or P012, all rejected. Sol implements this one rule on the dedicated
+branch; Astra reviews the actual diff before an execution grant.
+
+**Evidence and single hypothesis.** The existing matched-text P005 observation
+attributes substantial samples to bound1, canFormPlex and addG/subG: respectively
+15.17%, 15.11%, 12.99% on jazz(4,12), and 5.40%, 13.56%, 37.40% on DBLP(3,20).
+These are sampled source attributions, not counts of avoidable work. P011/P012
+show that reducing individual operations can lose to added overhead. P005
+currently invokes `branchInCandBase` even when the already selected candidate
+pivot has `neiInG[pivot] < q-k`; that routine enters `forkBranch` before doing
+the inclusion/filtering which will eventually fail. The proposed rule removes
+that whole infeasible include operation before a possible O(b+l) snapshot.
+The concrete FP source already guards its include operation by
+`subD[pivot]+k >= minsize` in
+`../src/parallel-baselines-20261025/kplexEnum-main/src/parallel_plex.cpp`
+(`recursionCalls`, around line483). FP and ListPlex retain different algorithms;
+this source fact does not attribute their measured gap to this one rule.
+
+The work-first motivation follows Dhulipala, Blelloch and Shun's emphasis on
+work-efficient practical graph algorithms in
+[the primary paper](https://www.cs.cmu.edu/~guyb/papers/3434393.pdf).
+The local k-plex argument and integration below are source-specific. The
+practical prediction is lower P1 and P8/P16/P20 wall on search-heavy jazz(4,12)
+relative to exact P005, without repeatable regression on the other fixed
+small/development cases. Neither occurrence frequency nor speedup is known.
+No new profile, algorithm threshold, queue, cache, core-closure pass or fork-
+admission policy is proposed.
+
+**Exact change.** Keep the existing `listByCase` size/empty checks, bound1,
+P-minimum test, C-minimum scan and whole-P+C k-plex check in their current order.
+Change only its candidate-pivot dispatch, after establishing that the selected
+pivot belongs to cand1:
+
+```
+if (minneiPlex == minnei) {
+    branchInPlexBase(pivot);
+} else if (minnei < bd) {       // bd == lb-k, strict inequality
+    cand1ToExcl(pivot)->listByCase();
+    exclToCand1(pivot);
+} else {
+    branchInCandBase(pivot);
+}
+```
+
+Use the already computed minimum and existing `bd`; no additional scan or
+allocation is needed. Equality retains the include branch. Do not move this
+test into `kSearch`, change its second-hop partition, or apply it to a state
+whose remaining cand2 vertices are still selectable. The candidate count
+arrays, pair matrix, bound1/bound12 and global maximality checker stay as in
+P005. The usual global q-k core preprocessing is distinct from this dynamic
+search-state degree certificate.
+
+**Correctness and scope.** At a `listByCase` checkpoint let U=P union C1.
+The actual P005 initialization gives `neiInG[v]=degreeHop[v]`. C1-to-P moves
+leave U unchanged; C1 exclusions/filter deletions call subG; their recoveries
+call addG. A selected second-hop vertex enters U only through the active
+`cand2BackToPlexInc`/addG path and leaves through its inverse. Hence neiInG is
+exactly degree into U. If a parked cand2 remains at the last kSearch branch,
+the root's nonneighbor budget is exhausted, so it is not an available extension.
+Every completion handled by this checkpoint is therefore contained in U.
+
+For selected v in C1 with deg_U(v)<q-k, any completion S containing v satisfies
+deg_S(v)<=deg_U(v)<q-k<=|S|-k when |S|>=q, contradicting the k-plex definition.
+The include partition is empty. The surviving partition uses the original
+move of v into X, recursive exclusion and recovery; root ownership, disjoint
+include/exclude partitions and the existing complete global maximality checks
+are preserved. No feasible output is removed or duplicated. The predicate is
+necessary only, not a certificate that the retained include branch has output.
+
+**Ordering and scheduling qualification.** P005's ungranted fork executes
+`first(*this); rest()`. The infeasible first branch can still reorder C/X
+through swap-removal, filtering and bound1 before restoring their sets. The
+shortcut omits those permutations. It therefore need not preserve later pivot
+ties, bound grouping, the complete search tree or actual instruction work at
+P1 or with exhausted credits. A granted first child is isolated, but saved
+credits can migrate to other later forks. Do not claim a globally unchanged
+surviving DAG, per-input work dominance over measured P005, fewer total snapshots
+in every schedule, or a causal explanation based only on the local skip count.
+
+**Work, span and space.** Compare both algorithms under P005's same array/RAM
+model and common parameters n,m,k,q, root universes b_i/l_i and degeneracy/right-
+candidate bounds. In the common worst-case search recurrence over candidate
+count and arbitrary admissible tie orders, the new case is one c-1 exclusion
+child plus O(1), dominated by the existing candidate branch's two c-1 children.
+Other seed-prefix and branching rules, per-state polynomial work, output and
+maximality work remain bounded as before. Thus the same common worst-case
+enumeration bound applies; this is not a bound by the actual reference trace.
+
+Writing R_i_new for complete local root work, including guard tests, the useful
+work accounting remains
+`O(B+P+N+Q*N+sum_i(R_i_new+b_i^2+b_i*l_i))`.
+Here B includes serial load/peel/order, native startup contributes O(P), and
+P005's Q*N<=N+sum degree(v)^2 accounts for stream initialization. Its unchanged
+creation credits permit at most b_i-1 compact O(b_i+l_i) snapshots per root,
+including initialized arrays/checker state, and retain the O(b_i^2) strong-CAS
+retry bound. Their cost remains chargeable to mandatory root materialization.
+An elided branch performs no new reservation; it does not create extra credits.
+
+Define S as the longest weighted path in the actual augmented execution DAG,
+including preprocessing/startup, local guards/recovery, snapshots, joins,
+unsplit leaves and all cross-stream atomic serialization edges. For each atomic
+object, include edges from the preceding operation in its actual order; the
+global root-fetch order can connect long roots belonging to different streams.
+Consequently, a maximum of per-stream root-span sums plus an additive root-claim
+term is not established here. The conservative bound is S<=W for the same
+accounted execution. Removing a particular doomed child can save copy/search
+work, but different permutations, root-claim order and credit placement prevent
+a cross-run span-dominance claim. No guaranteed self-speedup or unconditional
+work-stealing time claim follows. Fixed nonelastic idle/failed-steal CPU remains
+visible in GNU time records.
+
+Release adds no mutable storage, task, global atomic or allocation. Immutable
+root graphs/matrices remain shared; task-private sets/counts/checkers and strict
+joins retain P005's ownership through helping and suspension. Its full retained-
+stream/live-root/task/recovery space bound, including O(b_i^2+b_i*l_i+b_i^2*k)
+per-root frontier terms, remains applicable. Ordinary restored sets may have a
+different valid permutation, as already stated.
+
+**Nonvacuous targeted witnesses and diagnostics.** Freeze these graph families
+before implementation; obtain exact expected sets with the independent oracle.
+Let C be a six-vertex induced path, r adjacent to every C vertex, and O a clique
+joined completely to C but not adjacent to r. For k2/q5 use |O|=6 (n13); for
+k3/q7 use |O|=5 (n12). Vertex r has uniquely smallest initial degree6. The
+one-hop threshold q-2k=1 retains the path and the two-hop threshold3 retains O.
+The all-exclude-O kSearch path reaches P={r}, C1=C, with endpoint degree2 below
+q-k (3 or4), while the forced root remains feasible. For k3 bound1 does not
+prune this state: r is adjacent to every candidate and |P|+|C|=7.
+
+These graphs also test forbidden early placement: in the k2 graph,
+{r,c1,c2,c3,o} with three consecutive path vertices and o in O is a valid size5
+2-plex, despite c1's small neiInG before choosing o. In k3, r, any two O vertices
+and four consecutive C vertices form a valid size7 3-plex. Do not prune these
+selectable-cand2 states. Add a direct equality-boundary state with k2/q5,
+P={r}, r universal to C, and C equal to a two-clique joined to three independent
+vertices. A minimum candidate has degree3=q-k and belongs to a size5 2-plex;
+the candidate include dispatch must remain enabled. Exercise both grantable
+and exhausted/P1 fork paths and repeated exclusion/restoration.
+
+Correctness-only task-private checked counters record listByCase visits,
+candidate-pivot guard checks, strict elisions, equality-retained branches and
+actual granted snapshots; child totals start at zero and merge only after
+strict joins. Require positive elisions on the witnesses and equality coverage,
+and verify neiInG against explicit adjacency at their tested checkpoints.
+Elisions are not synonymous with globally avoided snapshots. Release contains
+none of these diagnostics and no additional profiling is requested.
+
+**Exactly three testing phases and limits.**
+
+1. Correctness: canonical19-call smoke, fixed2234-case independent oracle at
+   P1/P4, relevant boundaries, fixed P2/8/16/20 exact-set repetitions, the
+   targeted fixtures/dispatch checks above, and scoped ASan/UBSan/leaks. Reuse
+   unchanged protected reference traces with verified identities. Previously
+   unsupported TSan remains unsupported. Astra reviews actual source and
+   complete first-phase evidence before performance admission.
+2. Small-graph performance: unchanged jazz(3,10), ca-GrQc(3,10), jazz(4,12),
+   P1/2/4/8/16/20, three adjacent interleaved repetitions of P013/P005/safe
+   ListPlex/FP O3/PlexEnum O3/separate author-default Ofast: initially324 calls.
+   Freeze fresh plans/identities and varied six-solver positions, verify every
+   count, and report absolute wall, P1 overhead, self-speedup, CPU and RSS.
+   A suspected repeatable regression may receive one frozen9-call confirmation
+   on one case/P using P013/P005/Safe and rotated three-position order. All
+   original and all confirmation candidate/control wall ratios above1 reject;
+   mixed evidence is unresolved, not acceptance or automatic further testing.
+   Tiny GrQc results remain visible without an invented noise threshold.
+3. Large-scale-graph performance, only if phase2 survives: fixed Enron/Wiki/
+   DBLP development cases and all five core cases, retaining held-out DBLP(4,12),
+   Pokec(4,20) and Skitter(3,60), the same defaults/comparators/worker curve and
+   at least three interleaved repetitions. Known counts and exact input hashes
+   come from retained safe evidence; establish unknown Pokec/Skitter truth
+   inside this phase under fresh finite budgets. No paper-count substitution,
+   retired-job restart, held-out tuning or separate mandatory sanity round.
+   Missing/censored cases stay pending. No additional optional large case is
+   needed for this local branch rule.
+
+Each phase needs a coordinator grant and fresh paths after inventory/status and
+resource checks, the original coordination lock, one compiler/solver at a time,
+<=20 workers, <=160 GiB and <=70% available memory. Suggested phase1/2 limits
+are14400s per batch and8 GiB per child, with smoke and small timing calls<=120s;
+the coordinator freezes finite phase3 case/batch budgets before launch. Keep
+pinned native Parlay51017699dcc421f80479cdb238d3092233ad0d26, runtime0 and the
+same candidate binary at P1/P>1; authors/reference retain their runtimes.
+Wrong results, proof/ownership failures or repeated performance regression can
+reject early. Broad baseline/author evidence and Astra review remain necessary
+for acceptance. Registration launches nothing. After completed scope or justified
+rejection, follow the current ledger mirroring, scoped cleanup and authorized
+normal same-name technique-branch publication rules.
+
+
+#### P013 R1 implementation and fresh build
+
+Sol created `technique/p013-infeasible-include-elision` / `../worktrees/p013`
+from exact pending P0051ace08d901d0f0bf93514af88cf5a473284e18e2. The release
+change is only the strict `minnei<bd` candidate dispatch in listByCase, using
+original exclusion/recursion/recovery; equality retains inclusion. kSearch,
+counts, bounds, matrix, pivot selection, scheduling and runtime remain unchanged.
+No P010/P011/P012 algorithm is inherited.
+
+Correctness-only code checks actual degree into P+C1 at real listByCase entries,
+asserts parked C2 has exhausted the root nonneighbor budget, records task-private
+checked candidate/elision/equality/fork counters, and merges children after joins.
+Actual elision recovery verifies active-prefix sets/sizes/range/uniqueness/pos,
+original membership flags (without equating fakeRemove flags with active sets),
+P/exclusion-stack live prefixes, count arrays and pointer aliases, permitting
+valid C/X permutations. No uninitialized full-capacity pos/member scan is used.
+The direct harness calls actual kSearch/listByCase and maximality code with
+independent externally supplied root-containing oracle sets on the three frozen
+graphs. It covers initially selectable C2, real later elision, equality retention,
+P1/exhausted/grantable paths and three repeated restoration cycles per call.
+
+Fresh build/run roots are `../build/p013-r1-20261026-1808/` and
+`../runs/p013-r1-20261026-1808/`. Six artifacts compiled successfully on the
+first make-j1 controller2019580/start200345928, exit0, under original lock18779599.
+Compiler commands and source/support/binary identities are in
+`build-provenance.json`, the hash manifests and `tested-source/`. Preflight
+observed local Ubuntu,24 CPUs/affinity0-23, no quota, about239 GiB available and
+load0.35. All builds used pinned native Parlay runtime0 and no new pool/backend.
+No solver has run yet; the final actual-code Astra review is required first.
+
+The fixed correctness scope is **7072 logical records** if complete:
+smoke19 + fixed2234-case oracle6702 (including2234 verified reference reuses)
++ boundaries38 + fixed high-worker240 + diagnostic35 + sanitizer38. Each local
+component has20 fixed random,6 full witness/equality and9 actual-direct calls;
+each direct call internally verifies three searches/restores against the same
+independent expected sets. Sanitizer additionally covers K5/K520/K4100.
+This count is derived for P013; no prior technique outcome is reused as a P013
+pass. TSan remains previously unsupported, not passed. No phase2/3 is granted.
+
+
+#### P013 R1 completed correctness
+
+All **7072 logical records passed:4838 fresh calls plus2234 verified reused
+reference traces**, with19 smoke,6702 fixed2234-case oracle records at P1/P4,
+38 boundaries,240 fixed high-worker exact-set calls,35 diagnostic and38
+ASan/UBSan/leak calls. The18 actual-direct calls independently verify54 internal
+search/recovery repetitions. No source correction, failed test, extra fixture
+or repeated component occurred. The controller2024188/start200363946 exited0
+after165.000s; its process/session and all children ended, and original lock
+inode18779599 was again acquirable. Peak recorded solver RSS was294152 KiB.
+Ordinary children had8 GiB virtual-space limits; ASan retained shadow virtual
+space, with100ms aggregate child-tree physical RSS monitoring against8 GiB.
+
+The full read-only audit recomputed7021 raw exact-set hashes, all counts,
+workers/resources/run.json records, current source/binary identities and2234
+protected original-reference triplets. All matched. Safe control sources and
+executables were not rebuilt. Previously unsupported TSan remains unsupported,
+not passed, and was not rerun.
+
+The35 diagnostic records exercised4540 actual listByCase entries,1022 candidate
+checks,494 strict elisions with494 verified restores,450 equality-retained
+branches,539 actually granted snapshots and1458 ungranted forks. Explicit real
+checkpoint degree verification checked54010 vertex states. The sanitizer
+component separately exercised493 elisions/restores,450 equalities,539 grants,
+1460 ungranted forks and58694 degree checks without reported sanitizer/leak
+errors. These finite private counters validate execution paths; they do not
+measure globally avoided snapshots/work or claim unchanged search order.
+
+The registered k2 witness has34 global oracle sets,24 containing forced r;
+k3 has70/60 and equality3/3. Full actual solver sets and direct actual-method
+sets match those independent expectations. All selectable-C2 witness outputs,
+strict elisions and equality include dispatches survived P1, P4 exhausted and
+P4 grantable forks, including three restored-state repetitions per direct call.
+Active prefixes, positions, flags, P/exclusion stack, count arrays and aliases
+were checked on actual elision paths; no mirrored dispatch implementation was
+used. Targeted input SHA256 values are:
+
+- k2 path/joined-clique:46e96b8e205c398448a6d7df8b5c390eface5dc9292e151bafe7392ceb07ed95.
+- k3 path/joined-clique:22985f6780142f35435830430f5ba6c932a368ac3f126bebfc6a9e0c1780d902.
+- equality:52821d19ae287393f2b576b2e548224b456176fc9b80ddd2b8a676f2d942ea5a.
+
+All44 final C/C++ file hashes and6 support hashes still match their first
+physical-build manifests/snapshot. Build provenance SHA256:
+**32a2569a04a813601b0d31091ee7123d07d23a625814efb98f8064a3623d9861**.
+Release SHA256: **f7d2e82aa64ccea1e9389534c19e5854b887e218ad1cc89498a0c7b93a7b9bb3**.
+Emitter SHA256: **546ec29d0e0f9a93011eefdca29c37fa249b5fbf0ad6f3e9076e91d586208514**.
+Diagnostic emitter SHA256: **18e04b09b17b8f573bc79fce911767cbd10f5fdab71cac1a7967e8fc326995ab**.
+Actual dispatch harness SHA256: **bfeaf905b57f30827f02d63814bf1abbe5740426c42a9c57b01c49baee641b6f**.
+Sanitizer emitter SHA256: **9a43df355b3a289fbaa4b5ef37593f6a25d6c1b2411e49f48baebbb5ae61d8ae**.
+Sanitizer dispatch harness SHA256: **92731e4f2fdf29f2278ac4202f5a656448769cd1a433c0ea989bcc4f5bcc4978**.
+
+The preliminary actual correctness gate SHA256 is
+**9cbb457634180a1ded769c5786f11459441af883092570d3497fb029bac0a20b**; `performance_admission=false` correctly
+preserves pending Astra actual-evidence review and a separate phase2 grant.
+Gate creation launches no further solver. A fresh pending phase2 plan/queue
+preview in `../runs/p013-r1-small-plan-20261026-1816/` contains exactly324 calls
+and exclusivity false. Its metadata was built anew, reusing only frozen control
+identity fields; no old technique admission/grant/outcome text was inherited.
+Phase2 and phase3 remain UNRUN. Correctness is not acceptance.
+
+
+#### P013 phase1 Astra actual review and limited admission
+
+Astra independently audited all7072 logical records,7021 raw exact-set hashes,
+2234 protected original-reference dependencies, all counts/workers/resources,
+44 current/snapshot C/C++ identities,6 support files and6 binaries with physical
+build provenance. The18 actual dispatch calls/54 internal recovery cycles and
+registered k2/k3/selectable-C2/equality/grant/exhausted paths were verified.
+Diagnostic/sanitizer totals match the gate; no sanitizer error or unresolved
+blocker was found. No additional test is required. This admits only the finite
+registered phase2 screen, not performance success or technique acceptance.
+
+The preliminary gate **9cbb457634180a1ded769c5786f11459441af883092570d3497fb029bac0a20b**
+remains unchanged. The separate `correctness-gate.admitted.json` SHA256 is
+**ab27111a8d6514d318affd86f2290ef382701f8fac8201f7aee6c3d5954bc028**. `admission-metadata-delta.json` confirms only
+review/admission metadata changed; source, binaries and tests are identical.
+The new `plan.ready.json` references the admitted gate, with exclusivity false
+pending the coordinator's separate phase2 resource grant. No solver is run by
+this metadata transition; phase2/3 remain UNRUN.
+
+
+#### P013 phase2 coordinator grant
+
+Root verified ready plan67cc3eb9186422edbfb1cc618191fdb71c9c7c67b77c10d92428912034602cc7,
+admitted gateab27111a8d6514d318affd86f2290ef382701f8fac8201f7aee6c3d5954bc028,
+current identities and local resources, then granted exactly324 phase2 timings:
+three frozen cases, six solvers, P1/2/4/8/16/20 and three adjacent repetitions.
+The new `../runs/p013-r1-small-plan-20261026-1816/plan.final.json` records only
+this current nested grant, preserves pending/ready/frozen artifacts, and sets
+exclusivity true. Budgets:120s per call,14400s batch,8 GiB child, affinity0-19,
+<=20 total solver workers and original lock18779599; no competing compiler,
+data preparation or solver. Root observed24 CPUs/no quota/about239 GiB available
+and load0.47; the launcher repeats inventory/status/resource probing locally.
+No confirmation or phase3 is automatically authorized. All completed/censored
+results remain visible; full audit/curves follow completion before decisions.
+
+
+#### P013 R1 completed small-graph screen (not acceptance)
+
+All324 frozen timings completed with exact counts, requested/observed candidate
+workers and full resources. Outer controller2060052/start200433782 exited0 in
+200.557s; the session/process ended and original lock18779599 was freely acquirable.
+The independent read-only raw/order/count/resource/source/input/binary audit
+passed:108 summary cells,54 adjacent blocks and all270 paired candidate/control
+ratios are retained in `../runs/p013-r1-small-20261026-1816/`. The corresponding
+plan directory preserves pending,ready,final,current grant and frozen driver.
+No additional solver/build/preparation ran. Three repetitions vary six solver
+positions without exhaustive six-position balance. All tiny/noisy GrQc results
+remain visible; CPU includes native idle/spinning. Author thread configuration
+is distinguished from candidate runtime workers and external OS thread samples.
+
+Audit SHA256: **d2ff3588da9d73c906d7ca07980b48cd5519c0df1b44a0373cc24d0a4eb16748**.
+Measurements SHA256: **af1e81422067d941e3f93e447078637d26e14a4c48bb29126f93d6298e4bda51**.
+Analysis SHA256: **9019c17bd24f791158b3405eae15b4710094da4eb3e83b9dc23a18a65c8b12a2**.
+
+Complete median end-to-end wall seconds (same executable P1/P>1):
+
+jazz-k3-q10:
+
+| Solver | P1 | P2 | P4 | P8 | P16 | P20 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| P013 | 0.407392 | 0.222131 | 0.116230 | 0.073696 | 0.042393 | 0.046996 |
+| P005 | 0.409270 | 0.224330 | 0.123190 | 0.073545 | 0.038648 | 0.039775 |
+| SafeOpenMP | 0.404980 | 0.212437 | 0.117181 | 0.070912 | 0.053219 | 0.041989 |
+| FP | 0.345216 | 0.180081 | 0.099047 | 0.061081 | 0.043209 | 0.038944 |
+| PlexEnum | 0.440924 | 0.329190 | 0.292917 | 0.339464 | 0.503469 | 0.563302 |
+| PlexEnum-author-default-Ofast | 0.442197 | 0.336913 | 0.304403 | 0.337585 | 0.496768 | 0.610908 |
+
+ca-GrQc-k3-q10:
+
+| Solver | P1 | P2 | P4 | P8 | P16 | P20 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| P013 | 0.029363 | 0.021826 | 0.023147 | 0.016117 | 0.019410 | 0.023161 |
+| P005 | 0.029961 | 0.021395 | 0.021797 | 0.022240 | 0.014512 | 0.020260 |
+| SafeOpenMP | 0.028342 | 0.020946 | 0.022872 | 0.022307 | 0.020670 | 0.023465 |
+| FP | 0.029924 | 0.030248 | 0.021985 | 0.024436 | 0.022137 | 0.027530 |
+| PlexEnum | 0.165762 | 0.210939 | 0.240778 | 0.349879 | 0.432588 | 0.493830 |
+| PlexEnum-author-default-Ofast | 0.164609 | 0.204325 | 0.242583 | 0.350540 | 0.428628 | 0.499871 |
+
+jazz-k4-q12:
+
+| Solver | P1 | P2 | P4 | P8 | P16 | P20 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| P013 | 4.726926 | 2.408086 | 1.217864 | 0.629625 | 0.345402 | 0.287276 |
+| P005 | 4.761804 | 2.436231 | 1.229259 | 0.633539 | 0.335927 | 0.286615 |
+| SafeOpenMP | 4.662831 | 2.372084 | 1.212519 | 0.648437 | 0.365479 | 0.312289 |
+| FP | 3.446240 | 1.732270 | 0.883858 | 0.458165 | 0.244104 | 0.198250 |
+| PlexEnum | 3.316722 | 1.769608 | 1.021393 | 0.754722 | 0.642505 | 0.670501 |
+| PlexEnum-author-default-Ofast | 3.339714 | 1.767898 | 1.022148 | 0.758618 | 0.643425 | 0.674188 |
+
+Median adjacent P013/P005 wall ratios by P1/2/4/8/16/20:
+
+- jazz-k3-q10: 0.995411, 0.989760, 0.969160, 1.002050, 1.096899, 1.036012.
+- ca-GrQc-k3-q10: 0.969734, 1.046050, 1.061927, 0.724693, 1.574330, 1.142429.
+- jazz-k4-q12: 0.992671, 0.988758, 0.990562, 1.002739, 1.021093, 0.976566.
+
+The predicted search-heavy P1 direction is favorable in this screen:
+jazz(4,12) P013/P005 ratios0.994410/0.990676/0.992671 and CPU ratios
+0.993671/0.987395/0.993671. Median walls are P0134.726926s, P0054.761804s,
+Safe4.662831s, FP3.446240s and PlexEnum O3/Ofast3.316722/3.339714s.
+At P20 P013 has16.4543x self-speedup and0.287276s wall versus FP17.3833x and
+0.198250s. P013/P005 P20 ratios are mixed1.015023/0.970651/0.976566; favorable
+P1 work and individual P20 observations do not establish broad author parity.
+
+The clearest consistent multiworker concern is jazz(3,10) P16: all three
+adjacent P013/P005 wall ratios exceed1 (**1.097567/1.021112/1.096899**).
+CPU ratios are mixed1.038462/1.046512/0.960000, so they do not independently
+establish extra useful work. Tiny-case/short-call spread remains in the complete
+analysis; no tolerance or trimming is introduced. One preregistered finite
+nine-call confirmation on this single case/P, P013/P005/Safe and fully rotated
+three-position order, can discriminate the observed non-regression concern.
+This entry does not authorize that confirmation. No final decision or phase3
+admission follows automatically; phase3 remains UNRUN and ungranted.
+
+
+#### P013 single finite P16 confirmation: review, tool scope and grant
+
+Astra independently audited the full324-call screen and supports the one
+registered discriminating confirmation for jazz(3,10) P16. Root and Astra
+reviewed the new isolated driver diff and pending plan745c470e41f55175ed20127ad481863cafceb57d6837796f4d82ef4fec0b8487.
+The original full-curve driver requires P1; this confirmation must not add a P1
+call or borrow its denominator. The new frozen variant only changes its doc,
+explicit one-cell/three-solver/three-repetition admission and absent-P1 summary
+(self-speedup null/not measured). Its per-call measurement/identity/count/
+runtime/resource loop is byte-identical. The original324 frozen driver remains
+unchanged. The separate paired analyzer likewise computes no self-speedup.
+
+Root grants exactly9 calls: jazz(3,10), P16, P013/P005/Safe, three adjacent
+repetitions giving each solver each of all three positions. Budgets120s/call,
+900s batch,8 GiB child,16 solver workers, affinity0-19 and original lock18779599,
+exclusive. New final plan/current nested grant and all frozen tools are in
+`../runs/p013-r1-p16-confirm-plan-20261026-1830/`; run output is its sibling.
+No extra P1, author, graph, build or phase3 call is authorized.
+
+The frozen comparison is P013/P005 whole-process paired wall on this case/P.
+Original ratios1.097567/1.021112/1.096899 all exceed1. If all three new ratios
+also exceed1, reject repeatable per-case multiworker regression without adding
+a tolerance, trimming or replacing samples. Other confirmation outcomes remain
+unresolved, not acceptance or automatic phase3/expanded testing. CPU/spread/Safe
+support interpretation only and do not alter the rule.
+
+
+#### P013 R1 complete P16 confirmation: mixed, pending evidence
+
+Exactly9 registered jazz(3,10) P16 timings completed with count257233, runtime
+workers16 for both candidates, all resources and each solver occupying each of
+three positions exactly once. Outer exit0 at10:32:46Z; controller2077558/
+start200494004 and tmux ended, all children completed and original lock18779599
+was acquirable. Raw/order/source/input/binary/count/resource audit passed.
+Evidence: `../runs/p013-r1-p16-confirm-20261026-1830/` and sibling plan directory.
+Audit SHA256: **4bdff86fb24d1c5372454270b34e3117f527129cdc9b85c93c5054578346151c**.
+Analysis SHA256: **da59ce5a8c7b51688526bc8ba6fc7e1ee1a63d765344e29cdeea12e698e28aa1**.
+
+New paired P013/P005 walls are **1.023982/0.960624/0.850556**, with supporting
+CPU ratios0.980000/1.000000/0.909091. P013/Safe wall ratios are
+1.176967/0.789699/0.916255. Median walls are P0130.043210s, P0050.045518s and
+Safe0.047159s; full ranges and CPU/RSS remain in the analysis. Original P013/P005
+ratios were1.097567/1.021112/1.096899. The confirmation is mixed, so the frozen
+all-original-and-all-new-above1 rejection condition is **not met**.
+
+Per preregistration, status is **pending_evidence / unresolved**, neither
+rejected nor accepted. No tolerance, sample removal, cross-batch normalization
+or revised decision rule is introduced. No P1 invocation or self-speedup was
+measured in this fixed-P confirmation, and no prior batch denominator is borrowed.
+Retain all333 timings, favorable jazz(4,12) P1/P2/P4 observations and the
+unresolved high-worker evidence together. Phase3 is **UNRUN and ungranted**;
+no extra confirmation, expanded testing or acceptance follows automatically.
+Astra's actual nine-call review is pending. The planned finite phase1+phase2
+scope is complete; root authorizes a normal pending checkpoint publication after
+review, preserving the candidate and all evidence rather than applying rejected-
+trial cleanup. The continuing broad baseline/author/core/held-out goal is unfinished.
+
+
+#### P013 finite checkpoint review and preservation
+
+Astra independently reviewed all nine confirmation raw counts/workers/CPU/RSS,
+source/binary identities, paired ratios, all three positions and the frozen rule.
+The mixed1.023982/0.960624/0.850556 ratios leave **P013 pending_evidence /
+unresolved**, neither rejected nor accepted; phase3 stays **UNRUN**. Root
+confirms the finite phase1+phase2 scope is finished and authorizes a normal
+same-name pending checkpoint publication. No more test or phase3 is authorized.
+
+No cleanup is applied to this pending candidate: **0 files /0 bytes deleted**.
+`../runs/p013-r1-20261026-1808/retention-manifest.json` preserves all six tested
+binaries, all candidate builds/generated fixtures,2234 original reference
+triplets and6702 copied reference output files, all4838 fresh correctness raw
+calls and all333 timing raw records, source/snapshot/gates/manifests/provenance/
+plans/queues/audits/analyses. Nothing is removed as a rejected trial.
+
+All44 tested C/C++ files and all executed original validation/screen tools remain
+unchanged. Publication adds only the final result documentation and byte-identical
+copies of the reviewed/executed isolated fixed-P confirmation/analysis tools.
+`publication-support-sha256.json` distinguishes those delivery changes from
+frozen test support; they require no repeated experiment. The checkpoint ledger
+retains favorable jazz4 P1/P2/P4 observations, the unresolved high-worker results,
+all comparator curves and the continuing absolute FP/core/held-out limitations.
+The branch remains pending and is not merged into mainline.

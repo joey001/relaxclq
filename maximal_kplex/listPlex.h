@@ -42,6 +42,31 @@ namespace ListPlex{
     struct PlexEmitor;
     struct DecomposeMaxChecker;
 
+#ifdef P013_DIAGNOSTICS
+    struct ElisionStats {
+        uint64_t visits=0,checks=0,elisions=0,equalities=0,granted=0,ungranted=0,degreeChecks=0,restores=0;
+        bool overflow=false;
+        static void require(bool value) { if (!value) std::abort(); }
+        void add(uint64_t& dst,uint64_t value=1) {
+            if (UINT64_MAX-dst<value) overflow=true; else dst+=value;
+        }
+        void merge(const ElisionStats& source) {
+            overflow|=source.overflow;
+#define P013_MERGE(x) add(x,source.x)
+            P013_MERGE(visits);P013_MERGE(checks);P013_MERGE(elisions);P013_MERGE(equalities);
+            P013_MERGE(granted);P013_MERGE(ungranted);P013_MERGE(degreeChecks);P013_MERGE(restores);
+#undef P013_MERGE
+        }
+        void print() const {
+#define P013_PRINT(x) printf("P013 " #x ": %llu\n",static_cast<unsigned long long>(x))
+            P013_PRINT(visits);P013_PRINT(checks);P013_PRINT(elisions);P013_PRINT(equalities);
+            P013_PRINT(granted);P013_PRINT(ungranted);P013_PRINT(degreeChecks);P013_PRINT(restores);
+#undef P013_PRINT
+            printf("P013 totals: %s\n",overflow ? "INVALID overflow" : "valid");
+        }
+    };
+#endif
+
     template <typename MaximalityChecker, typename Emitor>
     struct KplexListor
     {
@@ -61,6 +86,65 @@ namespace ListPlex{
         const vector<uint8_t>& commonMtx;
         vector<std::pair<int,int> > vp;
         std::atomic<int>* forkCredits=nullptr;
+#ifdef P013_DIAGNOSTICS
+        ElisionStats elisionStats;
+        void verifyDegrees() {
+            // At this actual checkpoint U=P union C1, even when C2 is parked.
+            for (int v=0;v<subg.n;++v) {
+                int wantG=0,wantP=0;
+                for (int i=0;i<plex->sz;++i) wantP+=isAdjMtx(v,plex->members[i]);
+                wantG=wantP;
+                for (int i=0;i<cand1->sz;++i) wantG+=isAdjMtx(v,cand1->members[i]);
+                ElisionStats::require(neiInP[v]==wantP && neiInG[v]==wantG);
+                elisionStats.add(elisionStats.degreeChecks);
+            }
+            // A nonempty C2 at listByCase is parked, not still selectable.
+            if (cand2->sz) {
+                ElisionStats::require(plex->sz>0 && neiInP[plex->members[0]]+k==plex->sz);
+            }
+        }
+        struct ElisionRestore {
+            KplexListor& owner;
+            VtxSet* originalExcl;
+            int* originalP;
+            vector<int> p,g,solution,stack,c1Members,c2Members,xMembers,bkMembers;
+            vector<uint8_t> c1,c2,x;
+            static vector<int> active(VtxSet* set,int universe) {
+                ElisionStats::require(set->sz>=0 && set->sz<=set->cap);
+                vector<int> members(set->members,set->members+set->sz);
+                for(int i=0;i<set->sz;++i) {
+                    ElisionStats::require(set->members[i]>=0 && set->members[i]<universe);
+                    ElisionStats::require(set->pos[set->members[i]]==i);
+                }
+                sort(members.begin(),members.end());
+                ElisionStats::require(adjacent_find(members.begin(),members.end())==members.end());
+                return members;
+            }
+            explicit ElisionRestore(KplexListor& listor):owner(listor),
+                originalExcl(listor.excl),originalP(listor.neiInP),
+                p(listor.neiInP,listor.neiInP+listor.subg.n),g(listor.neiInG,listor.neiInG+listor.subg.n),
+                solution(listor.plex->members,listor.plex->members+listor.plex->sz),
+                stack(listor.exclStack->members,listor.exclStack->members+listor.exclStack->sz),
+                c1Members(active(listor.cand1,listor.subg.n)),c2Members(active(listor.cand2,listor.subg.n)),
+                xMembers(active(listor.excl,listor.subg.n)),bkMembers(active(listor.exclBK,listor.subg.n)),
+                c1(listor.subg.n),c2(listor.subg.n),x(listor.subg.n) {
+                for(int v=0;v<owner.subg.n;++v) {
+                    c1[v]=owner.cand1->contains(v);c2[v]=owner.cand2->contains(v);x[v]=owner.excl->contains(v);
+                }
+            }
+            void verify() {
+                ElisionStats::require(owner.excl==originalExcl && owner.neiInP==originalP && owner.plex->sz==int(solution.size()) && owner.exclStack->sz==int(stack.size()));
+                for(int i=0;i<owner.plex->sz;++i) ElisionStats::require(owner.plex->members[i]==solution[i]);
+                for(int i=0;i<owner.exclStack->sz;++i) ElisionStats::require(owner.exclStack->members[i]==stack[i]);
+                ElisionStats::require(active(owner.cand1,owner.subg.n)==c1Members && active(owner.cand2,owner.subg.n)==c2Members && active(owner.excl,owner.subg.n)==xMembers && active(owner.exclBK,owner.subg.n)==bkMembers);
+                for(int v=0;v<owner.subg.n;++v) {
+                    ElisionStats::require(owner.neiInP[v]==p[v] && owner.neiInG[v]==g[v] &&
+                        owner.cand1->contains(v)==bool(c1[v]) && owner.cand2->contains(v)==bool(c2[v]) && owner.excl->contains(v)==bool(x[v]));
+                }
+                owner.elisionStats.add(owner.elisionStats.restores);
+            }
+        };
+#endif
 
         KplexListor(Graph &_subg,MaximalityChecker *_plexMaxChecker, Emitor *_emitor,
                     Stack<int> *_plex, VtxSet *_cand1, VtxSet *_cand2, VtxSet *_excl, VtxSet *_exclBK, Stack<int> *_exclStack,
@@ -81,7 +165,15 @@ namespace ListPlex{
                 while (left>0 && !(granted=forkCredits->compare_exchange_strong(
                         left,left-1,std::memory_order_relaxed))) {}
             }
-            if (!granted) { first(*this); rest(); return; }
+            if (!granted) {
+#ifdef P013_DIAGNOSTICS
+                elisionStats.add(elisionStats.ungranted);
+#endif
+                first(*this); rest(); return;
+            }
+#ifdef P013_DIAGNOSTICS
+            elisionStats.add(elisionStats.granted);
+#endif
             Stack<int> childPlex(*plex,subg.n),childStack(*exclStack,subg.n);
             VtxSet childCand1(*cand1,subg.n),childCand2(*cand2,subg.n),childExcl(*excl,subg.n),childBK(*exclBK,subg.n);
             std::vector<int> childP(neiInP,neiInP+subg.n),childG(neiInG,neiInG+subg.n);
@@ -91,8 +183,14 @@ namespace ListPlex{
             KplexListor child(childGraph,&checker,&output,&childPlex,&childCand1,&childCand2,
                 (excl==exclBK ? &childBK : &childExcl),&childBK,&childStack,childP.data(),childG.data(),hopSz,hop2Sz,commonMtx);
             child.forkCredits=forkCredits;
+#ifdef P013_DIAGNOSTICS
+            ElisionStats::require(child.elisionStats.visits==0 && child.elisionStats.checks==0 && child.elisionStats.granted==0);
+#endif
             parlay::par_do([&]{first(child);},[&]{rest();});
             emitor->count+=output.count;
+#ifdef P013_DIAGNOSTICS
+            elisionStats.merge(child.elisionStats);
+#endif
         }
 
         size_t getIdx(const int v1,const int v2){
@@ -614,6 +712,10 @@ namespace ListPlex{
 
         void listByCase()
         {
+#ifdef P013_DIAGNOSTICS
+            elisionStats.add(elisionStats.visits);
+            verifyDegrees();
+#endif
             if (plex->sz + cand1->sz < lb){
                 return;
             }
@@ -648,7 +750,28 @@ namespace ListPlex{
             }
             // P005 exposes a bounded strict frontier inside each independent root.
             if (minneiPlex==minnei) branchInPlexBase(pivot);
-            else branchInCandBase(pivot);
+            else {
+#ifdef P013_DIAGNOSTICS
+                ElisionStats::require(cand1->contains(pivot) && minnei==neiInG[pivot] && bd==lb-k);
+                elisionStats.add(elisionStats.checks);
+#endif
+                if (minnei<bd) {
+#ifdef P013_DIAGNOSTICS
+                    elisionStats.add(elisionStats.elisions);
+                    ElisionRestore restore(*this);
+#endif
+                    cand1ToExcl(pivot)->listByCase();
+                    exclToCand1(pivot);
+#ifdef P013_DIAGNOSTICS
+                    restore.verify();
+#endif
+                } else {
+#ifdef P013_DIAGNOSTICS
+                    if (minnei==bd) elisionStats.add(elisionStats.equalities);
+#endif
+                    branchInCandBase(pivot);
+                }
+            }
         }
 
         void printContextInfo(){
