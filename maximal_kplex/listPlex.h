@@ -42,6 +42,29 @@ namespace ListPlex{
     struct PlexEmitor;
     struct DecomposeMaxChecker;
 
+#ifdef P012_DIAGNOSTICS
+    struct SaturationStats {
+        uint64_t queries=0,cheap=0,cached=0,scanned=0,original=0,pushes=0;
+        uint64_t rejectNew=0,rejectCached=0,extensions=0,passes=0,pgPasses=0;
+        uint64_t forks=0,nonemptyParentForks=0;
+        bool overflow=false;
+        void add(uint64_t& dst,uint64_t value) {
+            if (UINT64_MAX-dst<value) overflow=true; else dst+=value;
+        }
+        void merge(const SaturationStats& s) {
+            overflow|=s.overflow;
+#define P012_MERGE(x) add(x,s.x)
+            P012_MERGE(queries);P012_MERGE(cheap);P012_MERGE(cached);
+            P012_MERGE(scanned);P012_MERGE(original);P012_MERGE(pushes);
+            P012_MERGE(rejectNew);P012_MERGE(rejectCached);P012_MERGE(extensions);
+            P012_MERGE(passes);P012_MERGE(pgPasses);P012_MERGE(forks);
+            P012_MERGE(nonemptyParentForks);
+#undef P012_MERGE
+        }
+        static void require(bool value) { if (!value) std::abort(); }
+    };
+#endif
+
     template <typename MaximalityChecker, typename Emitor>
     struct KplexListor
     {
@@ -61,6 +84,103 @@ namespace ListPlex{
         const vector<uint8_t>& commonMtx;
         vector<std::pair<int,int> > vp;
         std::atomic<int>* forkCredits=nullptr;
+        // Only capacity survives a pass. A constructed fork child starts empty.
+        vector<int> saturationScratch;
+#ifdef P012_DIAGNOSTICS
+        SaturationStats saturationStats;
+        bool prefixActive=false;
+#endif
+
+        struct SaturationPrefix {
+            KplexListor& owner;
+            int cursor=0;
+            explicit SaturationPrefix(KplexListor& listor,bool pg=false):owner(listor) {
+                owner.saturationScratch.clear();
+#ifdef P012_DIAGNOSTICS
+                SaturationStats::require(!owner.prefixActive);
+                owner.prefixActive=true;
+                owner.saturationStats.add(owner.saturationStats.passes,1);
+                if (pg) owner.saturationStats.add(owner.saturationStats.pgPasses,1);
+#endif
+            }
+            SaturationPrefix(const SaturationPrefix&)=delete;
+            SaturationPrefix& operator=(const SaturationPrefix&)=delete;
+            ~SaturationPrefix() {
+#ifdef P012_DIAGNOSTICS
+                owner.prefixActive=false;
+#endif
+            }
+            bool query(const int u,const int extra) {
+#ifdef P012_DIAGNOSTICS
+                auto& stats=owner.saturationStats;
+                uint64_t a=0,e=0,r=0;
+                const int oldCursor=cursor;
+                const size_t oldSize=owner.saturationScratch.size();
+                const size_t oldCapacity=owner.saturationScratch.capacity();
+                const bool expected=owner.originalCanFormPlex(u,extra,r);
+                auto finish=[&](bool answer,bool cheap=false) {
+                    SaturationStats::require(answer==expected && a+e<=r);
+                    if (cheap) SaturationStats::require(a==0 && e==0 && cursor==oldCursor &&
+                        owner.saturationScratch.size()==oldSize && owner.saturationScratch.capacity()==oldCapacity);
+                    size_t index=0;
+                    SaturationStats::require(cursor>=0 && cursor<=owner.plex->sz);
+                    for (int i=0;i<cursor;++i) {
+                        const int v=owner.plex->members[i];
+                        if (owner.neiInP[v]+k==owner.plex->sz) {
+                            SaturationStats::require(index<owner.saturationScratch.size() && owner.saturationScratch[index]==v);
+                            ++index;
+                        }
+                    }
+                    SaturationStats::require(index==owner.saturationScratch.size());
+                    stats.add(stats.queries,1);stats.add(stats.cached,a);stats.add(stats.scanned,e);stats.add(stats.original,r);
+                    if (cheap) stats.add(stats.cheap,1);
+                    if (oldCursor>0 && cursor>oldCursor) stats.add(stats.extensions,1);
+                    return answer;
+                };
+#define P012_RETURN(answer,cheap) return finish(answer,cheap)
+#else
+#define P012_RETURN(answer,cheap) return answer
+#endif
+                // G changes during candidate filtering; these tests stay live.
+                if (owner.neiInP[u]+k<owner.plex->sz+1 || owner.neiInG[u]+k<max(lb,owner.plex->sz)+extra) {
+                    P012_RETURN(false,true);
+                }
+                for (const int v:owner.saturationScratch) {
+                    assert(v!=u);
+#ifdef P012_DIAGNOSTICS
+                    ++a;
+#endif
+                    if (!owner.isAdjMtx(v,u)) {
+#ifdef P012_DIAGNOSTICS
+                        stats.add(stats.rejectCached,1);
+#endif
+                        P012_RETURN(false,false);
+                    }
+                }
+                while (cursor<owner.plex->sz) {
+                    const int v=owner.plex->members[cursor++];
+                    assert(v!=u);
+#ifdef P012_DIAGNOSTICS
+                    ++e;
+#endif
+                    if (owner.neiInP[v]+k==owner.plex->sz) {
+                        // Include a rejecting vertex in the known prefix.
+                        owner.saturationScratch.push_back(v);
+#ifdef P012_DIAGNOSTICS
+                        stats.add(stats.pushes,1);
+#endif
+                        if (!owner.isAdjMtx(v,u)) {
+#ifdef P012_DIAGNOSTICS
+                            stats.add(stats.rejectNew,1);
+#endif
+                            P012_RETURN(false,false);
+                        }
+                    }
+                }
+                P012_RETURN(true,false);
+#undef P012_RETURN
+            }
+        };
 
         KplexListor(Graph &_subg,MaximalityChecker *_plexMaxChecker, Emitor *_emitor,
                     Stack<int> *_plex, VtxSet *_cand1, VtxSet *_cand2, VtxSet *_excl, VtxSet *_exclBK, Stack<int> *_exclStack,
@@ -91,8 +211,18 @@ namespace ListPlex{
             KplexListor child(childGraph,&checker,&output,&childPlex,&childCand1,&childCand2,
                 (excl==exclBK ? &childBK : &childExcl),&childBK,&childStack,childP.data(),childG.data(),hopSz,hop2Sz,commonMtx);
             child.forkCredits=forkCredits;
+#ifdef P012_DIAGNOSTICS
+            SaturationStats::require(!prefixActive && !child.prefixActive && child.saturationScratch.empty() && child.saturationScratch.capacity()==0);
+            saturationStats.add(saturationStats.forks,1);
+            if (!saturationScratch.empty()) saturationStats.add(saturationStats.nonemptyParentForks,1);
+#endif
             parlay::par_do([&]{first(child);},[&]{rest();});
             emitor->count+=output.count;
+#ifdef P012_DIAGNOSTICS
+            SaturationStats::require(!prefixActive && !child.prefixActive &&
+                (saturationScratch.capacity()==0 || child.saturationScratch.capacity()==0 || saturationScratch.data()!=child.saturationScratch.data()));
+            saturationStats.merge(child.saturationStats);
+#endif
         }
 
         size_t getIdx(const int v1,const int v2){
@@ -236,11 +366,12 @@ namespace ListPlex{
         }
 
         KplexListor* updateExcl(int& recExcl,const int v2add){
+            SaturationPrefix prefix(*this);
             recExcl=excl->sz;
             for (int i = 0; i < excl->sz;)
             {
                 const int ele = excl->members[i];
-                if((subg.proper&&UNLINK2MORE>commonMtx[getIdx(ele,v2add)])||!canFormPlex(ele,1)){
+                if((subg.proper&&UNLINK2MORE>commonMtx[getIdx(ele,v2add)])||!prefix.query(ele,1)){
                     excl->remove(ele);
                     exclStack->push(ele);
                 }
@@ -266,11 +397,12 @@ namespace ListPlex{
         }
 
         KplexListor* updateCand1(int& recCand1,const int v2add){
+            SaturationPrefix prefix(*this);
             recCand1=cand1->sz;
             for (int i = 0; i < cand1->sz;)
             {
                 const int ele = cand1->members[i];
-                if((subg.proper&&UNLINK2EQUAL>commonMtx[getIdx(ele,v2add)])||!canFormPlex(ele,0)){
+                if((subg.proper&&UNLINK2EQUAL>commonMtx[getIdx(ele,v2add)])||!prefix.query(ele,0)){
                     cand1->remove(ele);
                     subG(ele);
                 }
@@ -281,11 +413,12 @@ namespace ListPlex{
         }
 
         KplexListor* updateCand1Fake(int& recCand1,const  int v2add){
+            SaturationPrefix prefix(*this);
             recCand1=cand1->sz;
             for (int i = 0; i < cand1->sz;)
             {
                 int ele = cand1->members[i];
-                if((subg.proper&&UNLINK2EQUAL>commonMtx[getIdx(v2add,ele)])||!canFormPlex(ele,0)){
+                if((subg.proper&&UNLINK2EQUAL>commonMtx[getIdx(v2add,ele)])||!prefix.query(ele,0)){
                     cand1->fakeRemove(ele);
                     subG(ele);
                 }
@@ -339,14 +472,16 @@ namespace ListPlex{
             return this;
         }
 
-        //Check if plex+u is a k-plex
-        bool canFormPlex(const int u,const int extra)
+#ifdef P012_DIAGNOSTICS
+        // Independent original predicate, compiled only for validation.
+        bool originalCanFormPlex(const int u,const int extra,uint64_t& visits)
         {
             if (neiInP[u] + k < plex->sz + 1 || neiInG[u] + k < max(lb,plex->sz)+extra)
                 return false;
             for (int i = 0; i < plex->sz; i++)
             {
                 const int v = plex->members[i];
+                ++visits;
                 assert(v != u);
                 if (neiInP[v] + k == plex->sz && !isAdjMtx(v, u))
                 { //v is saturated by v,u are not neighbors
@@ -355,6 +490,7 @@ namespace ListPlex{
             }
             return true;
         }
+#endif
         void kSearch(const int res){
             checkTimeLimit();
             int recExcl=0,recExclTmp;
@@ -424,13 +560,16 @@ namespace ListPlex{
             //assume plex+cand as a plex
 
             bool flag = true;
+            {
+            SaturationPrefix prefix(*this,true);
             for (int i = 0; i < excl->sz;++i)
             {
-                if (canFormPlex(excl->members[i],1))
+                if (prefix.query(excl->members[i],1))
                 {
                     flag = false;
                     break;
                 }
+            }
             }
             if (flag&&plexMaxChecker->isMaximal(plex->members, plex->sz, neiInP))
             {

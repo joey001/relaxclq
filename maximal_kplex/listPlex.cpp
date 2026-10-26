@@ -458,7 +458,11 @@ namespace ListPlex
             degreeWork+=std::min(d*d,budget-degreeWork);
         }
         const size_t streams=pn ? std::min(cap,size_t(1+degreeWork/uint64_t(pn))) : 0;
-        struct Result { unsigned long long count=0; size_t valid=0,roots=0; unsigned long long snapshots=0,snapshotCapacityBytes=0; };
+        struct Result { unsigned long long count=0; size_t valid=0,roots=0; unsigned long long snapshots=0,snapshotCapacityBytes=0;
+#ifdef P012_DIAGNOSTICS
+            SaturationStats saturationStats;
+#endif
+        };
         std::vector<Result> results(streams);
         std::atomic<size_t> next{0};
         parlay::parallel_for(0,streams,[&](size_t stream) {
@@ -501,6 +505,10 @@ namespace ListPlex
                 std::atomic<int> forkCredits(blkSz-1);
                 listor.forkCredits=workers>1 ? &forkCredits : nullptr;
                 listor.cand1ToPlex(0)->kSearch(k-1);
+#ifdef P012_DIAGNOSTICS
+                SaturationStats::require(!listor.prefixActive);
+                result.saturationStats.merge(listor.saturationStats);
+#endif
                 const unsigned long long snapshots=blkSz-1-forkCredits.load(std::memory_order_relaxed);
                 result.snapshots+=snapshots;
                 result.snapshotCapacityBytes+=snapshots*(48ULL*blkSz+8ULL*leftSz+
@@ -516,9 +524,15 @@ namespace ListPlex
         unsigned long long cntMaxPlex=0;
         size_t validblk=0,rootCount=0;
         unsigned long long snapshots=0,snapshotCapacityBytes=0;
+#ifdef P012_DIAGNOSTICS
+        SaturationStats saturationStats;
+#endif
         for (const Result& result:results) {
             cntMaxPlex+=result.count;validblk+=result.valid;rootCount+=result.roots;
             snapshots+=result.snapshots;snapshotCapacityBytes+=result.snapshotCapacityBytes;
+#ifdef P012_DIAGNOSTICS
+            saturationStats.merge(result.saturationStats);
+#endif
         }
         const auto done=Clock::now();
         printf("Preprocessing time: %.6f s\n",std::chrono::duration<double>(rootsStart-searchStart).count());
@@ -531,6 +545,14 @@ namespace ListPlex
         printf("Task Cnt: %zu\n",rootCount);
         printf("Fork snapshots: %llu\n",snapshots);
         printf("Snapshot base capacity bytes (cumulative): %llu\n",snapshotCapacityBytes);
+#ifdef P012_DIAGNOSTICS
+#define P012_PRINT(x) printf("P012 " #x ": %llu\n",static_cast<unsigned long long>(saturationStats.x))
+        P012_PRINT(queries);P012_PRINT(cheap);P012_PRINT(cached);P012_PRINT(scanned);
+        P012_PRINT(original);P012_PRINT(pushes);P012_PRINT(rejectNew);P012_PRINT(rejectCached);
+        P012_PRINT(extensions);P012_PRINT(passes);P012_PRINT(pgPasses);P012_PRINT(forks);P012_PRINT(nonemptyParentForks);
+#undef P012_PRINT
+        printf("P012 totals: %s\n",saturationStats.overflow ? "INVALID overflow" : "valid");
+#endif
     }
 int main_maximal_kplex(char* file_path,int k_value,int lower_bound,int binary_flag,double timeLimit){
     std::string input(file_path);
